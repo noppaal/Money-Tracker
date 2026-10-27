@@ -50,7 +50,7 @@ class DatabaseHelper {
       }
     }
 
-    // Ensure wallets and schema are up to date on any existing database
+    // Ensure wallets, categories, and transactions schemas are up to date
     try {
       await _ensureSchemaUpToDate(db);
     } catch (e) {
@@ -75,11 +75,12 @@ class DatabaseHelper {
       )
     ''');
 
-    // 2. Create Categories Table
+    // 2. Create Categories Table (Supports both expense and income)
     await db.execute('''
       CREATE TABLE categories (
         id TEXT PRIMARY KEY,
         name TEXT NOT NULL,
+        type TEXT NOT NULL DEFAULT 'expense',
         allocated_amount REAL NOT NULL,
         icon_code_point INTEGER NOT NULL,
         icon_font_family TEXT,
@@ -89,12 +90,13 @@ class DatabaseHelper {
       )
     ''');
 
-    // 3. Create Transactions Table
+    // 3. Create Transactions Table (Supports both expense and income)
     await db.execute('''
       CREATE TABLE transactions (
         id TEXT PRIMARY KEY,
         category_id TEXT NOT NULL,
         wallet_id TEXT NOT NULL DEFAULT 'wallet_cash',
+        type TEXT NOT NULL DEFAULT 'expense',
         amount REAL NOT NULL,
         date TEXT NOT NULL,
         note TEXT,
@@ -111,10 +113,14 @@ class DatabaseHelper {
     }
     await walletBatch.commit(noResult: true);
 
-    // 5. Seed Default 8 Budget Categories (Rp4.500.000 total)
+    // 5. Seed Default Expense Categories (Rp4.500.000 total)
     final catBatch = db.batch();
     for (final category in BudgetCategory.defaultCategories) {
       catBatch.insert('categories', category.toMap());
+    }
+    // 6. Seed Default Income Categories
+    for (final incCategory in BudgetCategory.defaultIncomeCategories) {
+      catBatch.insert('categories', incCategory.toMap());
     }
     await catBatch.commit(noResult: true);
   }
@@ -135,10 +141,10 @@ class DatabaseHelper {
     ''');
 
     // 2. Seed default wallets if empty
-    final count = Sqflite.firstIntValue(
+    final countWallets = Sqflite.firstIntValue(
       await db.rawQuery('SELECT COUNT(*) FROM wallets'),
     ) ?? 0;
-    if (count == 0) {
+    if (countWallets == 0) {
       final batch = db.batch();
       for (final w in Wallet.defaultWallets) {
         batch.insert('wallets', w.toMap());
@@ -149,9 +155,36 @@ class DatabaseHelper {
     // 3. Ensure wallet_id column in transactions exists
     try {
       await db.execute("ALTER TABLE transactions ADD COLUMN wallet_id TEXT DEFAULT 'wallet_cash'");
-    } catch (_) {
-      // Column already exists
-    }
+    } catch (_) {}
+
+    // 4. Ensure type column in transactions exists
+    try {
+      await db.execute("ALTER TABLE transactions ADD COLUMN type TEXT DEFAULT 'expense'");
+    } catch (_) {}
+
+    // 5. Ensure type column in categories exists
+    try {
+      await db.execute("ALTER TABLE categories ADD COLUMN type TEXT DEFAULT 'expense'");
+    } catch (_) {}
+
+    // 6. Seed default income categories if not yet in database
+    try {
+      final incomeCount = Sqflite.firstIntValue(
+        await db.rawQuery("SELECT COUNT(*) FROM categories WHERE type = 'income'"),
+      ) ?? 0;
+
+      if (incomeCount == 0) {
+        final batch = db.batch();
+        for (final cat in BudgetCategory.defaultIncomeCategories) {
+          batch.insert(
+            'categories',
+            cat.toMap(),
+            conflictAlgorithm: ConflictAlgorithm.ignore,
+          );
+        }
+        await batch.commit(noResult: true);
+      }
+    } catch (_) {}
   }
 
   // ================= WALLET OPERATIONS =================
@@ -160,24 +193,28 @@ class DatabaseHelper {
     final db = await database;
     final walletsResult = await db.query('wallets', orderBy: 'is_default DESC, created_at ASC');
 
-    // Calculate total spent per wallet
-    final spentResult = await db.rawQuery('''
-      SELECT wallet_id, SUM(amount) as total_spent
+    // Calculate total spent and total income per wallet
+    final statsResult = await db.rawQuery('''
+      SELECT wallet_id,
+             SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END) as total_income,
+             SUM(CASE WHEN type != 'income' THEN amount ELSE 0 END) as total_spent
       FROM transactions
       GROUP BY wallet_id
     ''');
 
     final Map<String, double> spentMap = {};
-    for (final row in spentResult) {
+    final Map<String, double> incomeMap = {};
+    for (final row in statsResult) {
       final wId = row['wallet_id'] as String? ?? 'wallet_cash';
-      final total = (row['total_spent'] as num?)?.toDouble() ?? 0.0;
-      spentMap[wId] = total;
+      spentMap[wId] = (row['total_spent'] as num?)?.toDouble() ?? 0.0;
+      incomeMap[wId] = (row['total_income'] as num?)?.toDouble() ?? 0.0;
     }
 
     return walletsResult.map((map) {
       final id = map['id'] as String;
       final spent = spentMap[id] ?? 0.0;
-      return Wallet.fromMap(map, spent: spent);
+      final income = incomeMap[id] ?? 0.0;
+      return Wallet.fromMap(map, spent: spent, income: income);
     }).toList();
   }
 
@@ -203,7 +240,6 @@ class DatabaseHelper {
   Future<int> deleteWallet(String id) async {
     final db = await database;
     return await db.transaction((txn) async {
-      // Reassign transactions to default wallet before deleting, or delete them
       final defaultWallet = await txn.query(
         'wallets',
         where: 'id != ?',
@@ -232,9 +268,19 @@ class DatabaseHelper {
 
   // ================= CATEGORY OPERATIONS =================
 
-  Future<List<BudgetCategory>> getAllCategories() async {
+  Future<List<BudgetCategory>> getAllCategories({String? type}) async {
     final db = await database;
-    final result = await db.query('categories', orderBy: 'sort_order ASC');
+    final List<Map<String, dynamic>> result;
+    if (type != null && type.isNotEmpty && type != 'all') {
+      result = await db.query(
+        'categories',
+        where: 'type = ?',
+        whereArgs: [type],
+        orderBy: 'sort_order ASC',
+      );
+    } else {
+      result = await db.query('categories', orderBy: 'sort_order ASC');
+    }
     return result.map((json) => BudgetCategory.fromMap(json)).toList();
   }
 
@@ -310,6 +356,7 @@ class DatabaseHelper {
     int year,
     int month, {
     String? walletId,
+    String? type,
   }) async {
     final db = await database;
     final startDate = DateTime(year, month, 1).toIso8601String();
@@ -323,9 +370,14 @@ class DatabaseHelper {
       whereArgs.add(walletId);
     }
 
+    if (type != null && type.isNotEmpty && type != 'all') {
+      whereClause += ' AND t.type = ?';
+      whereArgs.add(type);
+    }
+
     final result = await db.rawQuery('''
       SELECT t.*, 
-             c.name as category_name, c.allocated_amount as category_allocated,
+             c.name as category_name, c.type as category_type, c.allocated_amount as category_allocated,
              c.icon_code_point as category_icon, c.icon_font_family as category_font,
              c.color_value as category_color, c.sort_order as category_sort, c.is_default as category_default,
              w.name as wallet_name, w.initial_balance as wallet_initial,
@@ -343,7 +395,8 @@ class DatabaseHelper {
         category = BudgetCategory(
           id: row['category_id'] as String,
           name: row['category_name'] as String,
-          allocatedAmount: (row['category_allocated'] as num).toDouble(),
+          type: (row['category_type'] as String?) ?? 'expense',
+          allocatedAmount: (row['category_allocated'] as num?)?.toDouble() ?? 0.0,
           iconCodePoint: (row['category_icon'] as int?) ?? 0,
           iconFontFamily: row['category_font'] as String?,
           colorValue: (row['category_color'] as int?) ?? 0,
@@ -377,7 +430,7 @@ class DatabaseHelper {
     final startDate = DateTime(year, month, 1).toIso8601String();
     final endDate = DateTime(year, month + 1, 0, 23, 59, 59).toIso8601String();
 
-    String whereClause = 'date >= ? AND date <= ?';
+    String whereClause = "date >= ? AND date <= ? AND (type != 'income' OR type IS NULL)";
     List<dynamic> whereArgs = [startDate, endDate];
 
     if (walletId != null && walletId.isNotEmpty && walletId != 'all') {
@@ -398,7 +451,42 @@ class DatabaseHelper {
       final totalSpent = (row['total_spent'] as num?)?.toDouble() ?? 0.0;
       spentMap[categoryId] = totalSpent;
     }
+
     return spentMap;
+  }
+
+  Future<Map<String, double>> getIncomePerCategoryForMonth(
+    int year,
+    int month, {
+    String? walletId,
+  }) async {
+    final db = await database;
+    final startDate = DateTime(year, month, 1).toIso8601String();
+    final endDate = DateTime(year, month + 1, 0, 23, 59, 59).toIso8601String();
+
+    String whereClause = "date >= ? AND date <= ? AND type = 'income'";
+    List<dynamic> whereArgs = [startDate, endDate];
+
+    if (walletId != null && walletId.isNotEmpty && walletId != 'all') {
+      whereClause += ' AND wallet_id = ?';
+      whereArgs.add(walletId);
+    }
+
+    final result = await db.rawQuery('''
+      SELECT category_id, SUM(amount) as total_income
+      FROM transactions
+      WHERE $whereClause
+      GROUP BY category_id
+    ''', whereArgs);
+
+    final Map<String, double> incomeMap = {};
+    for (final row in result) {
+      final categoryId = row['category_id'] as String;
+      final totalIncome = (row['total_income'] as num?)?.toDouble() ?? 0.0;
+      incomeMap[categoryId] = totalIncome;
+    }
+
+    return incomeMap;
   }
 
   Future<List<TransactionItem>> getAllTransactions({String? walletId}) async {
@@ -413,7 +501,7 @@ class DatabaseHelper {
 
     final result = await db.rawQuery('''
       SELECT t.*, 
-             c.name as category_name, c.allocated_amount as category_allocated,
+             c.name as category_name, c.type as category_type, c.allocated_amount as category_allocated,
              c.icon_code_point as category_icon, c.icon_font_family as category_font,
              c.color_value as category_color, c.sort_order as category_sort, c.is_default as category_default,
              w.name as wallet_name, w.initial_balance as wallet_initial,
@@ -431,7 +519,8 @@ class DatabaseHelper {
         category = BudgetCategory(
           id: row['category_id'] as String,
           name: row['category_name'] as String,
-          allocatedAmount: (row['category_allocated'] as num).toDouble(),
+          type: (row['category_type'] as String?) ?? 'expense',
+          allocatedAmount: (row['category_allocated'] as num?)?.toDouble() ?? 0.0,
           iconCodePoint: (row['category_icon'] as int?) ?? 0,
           colorValue: (row['category_color'] as int?) ?? 0,
         );
@@ -503,6 +592,9 @@ class DatabaseHelper {
       final catBatch = txn.batch();
       for (final category in BudgetCategory.defaultCategories) {
         catBatch.insert('categories', category.toMap());
+      }
+      for (final incCategory in BudgetCategory.defaultIncomeCategories) {
+        catBatch.insert('categories', incCategory.toMap());
       }
       await catBatch.commit(noResult: true);
     });

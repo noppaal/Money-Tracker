@@ -18,6 +18,7 @@ class FinanceProvider with ChangeNotifier {
   String? _errorMessage;
 
   // Transaction filter state
+  String _selectedTypeFilter = 'all'; // 'all', 'expense', 'income'
   String? _selectedCategoryFilter;
   String _searchQuery = '';
 
@@ -42,21 +43,26 @@ class FinanceProvider with ChangeNotifier {
   }
 
   List<BudgetCategory> get categories => _categories;
+  List<BudgetCategory> get expenseCategories => _categories.where((c) => c.isExpense).toList();
+  List<BudgetCategory> get incomeCategories => _categories.where((c) => c.isIncome).toList();
+
   List<TransactionItem> get transactions => _transactions;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
+  String get selectedTypeFilter => _selectedTypeFilter;
   String? get selectedCategoryFilter => _selectedCategoryFilter;
   String get searchQuery => _searchQuery;
 
-  // Filtered transactions
+  // Filtered transactions (by type, category, and search query)
   List<TransactionItem> get filteredTransactions {
     return _transactions.where((tx) {
+      final matchesType = _selectedTypeFilter == 'all' || tx.type == _selectedTypeFilter;
       final matchesCategory = _selectedCategoryFilter == null ||
           tx.categoryId == _selectedCategoryFilter;
       final matchesSearch = _searchQuery.isEmpty ||
           tx.note.toLowerCase().contains(_searchQuery.toLowerCase()) ||
           (tx.category?.name.toLowerCase().contains(_searchQuery.toLowerCase()) ?? false);
-      return matchesCategory && matchesSearch;
+      return matchesType && matchesCategory && matchesSearch;
     }).toList();
   }
 
@@ -75,12 +81,28 @@ class FinanceProvider with ChangeNotifier {
     return _wallets.fold(0.0, (sum, w) => sum + w.initialBalance);
   }
 
+  // Total budget is sum of expense envelopes only
   double get totalBudget {
-    return _categories.fold(0.0, (sum, cat) => sum + cat.allocatedAmount);
+    return expenseCategories.fold(0.0, (sum, cat) => sum + cat.allocatedAmount);
   }
 
+  // Total spent in this month (expenses only)
   double get totalSpent {
-    return _transactions.fold(0.0, (sum, tx) => sum + tx.amount);
+    return _transactions
+        .where((tx) => tx.isExpense)
+        .fold(0.0, (sum, tx) => sum + tx.amount);
+  }
+
+  // Total income in this month
+  double get totalIncome {
+    return _transactions
+        .where((tx) => tx.isIncome)
+        .fold(0.0, (sum, tx) => sum + tx.amount);
+  }
+
+  // Net Cash Flow for the month (Pemasukan - Pengeluaran)
+  double get netCashFlow {
+    return totalIncome - totalSpent;
   }
 
   double get remainingBalance {
@@ -143,17 +165,25 @@ class FinanceProvider with ChangeNotifier {
         walletId: _selectedWalletId,
       );
 
-      // 4. Fetch spent per category for the selected month and wallet
+      // 4. Fetch spent & income per category for the selected month and wallet
       final spentMap = await _dbHelper.getSpentPerCategoryForMonth(
         _selectedMonth.year,
         _selectedMonth.month,
         walletId: _selectedWalletId,
       );
 
-      // 5. Update categories with computed spent amount
+      final incomeMap = await _dbHelper.getIncomePerCategoryForMonth(
+        _selectedMonth.year,
+        _selectedMonth.month,
+        walletId: _selectedWalletId,
+      );
+
+      // 5. Update categories with computed amount (spent for expense, earned for income)
       _categories = dbCategories.map((cat) {
-        final spent = spentMap[cat.id] ?? 0.0;
-        return cat.copyWith(spentAmount: spent);
+        final amount = cat.isIncome
+            ? (incomeMap[cat.id] ?? 0.0)
+            : (spentMap[cat.id] ?? 0.0);
+        return cat.copyWith(spentAmount: amount);
       }).toList();
 
       _transactions = monthTransactions;
@@ -173,6 +203,11 @@ class FinanceProvider with ChangeNotifier {
   void changeMonth(DateTime newMonth) {
     _selectedMonth = DateTime(newMonth.year, newMonth.month, 1);
     loadData();
+  }
+
+  void setTypeFilter(String type) {
+    _selectedTypeFilter = type;
+    notifyListeners();
   }
 
   void setCategoryFilter(String? categoryId) {
@@ -256,6 +291,7 @@ class FinanceProvider with ChangeNotifier {
     required String categoryId,
     required double amount,
     required DateTime date,
+    String type = 'expense',
     String note = '',
     String? walletId,
   }) async {
@@ -269,6 +305,7 @@ class FinanceProvider with ChangeNotifier {
         id: 'tx_${now.millisecondsSinceEpoch}',
         categoryId: categoryId,
         walletId: effectiveWalletId,
+        type: type,
         amount: amount,
         date: date,
         note: note.trim(),

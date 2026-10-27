@@ -9,18 +9,27 @@ import '../../providers/finance_provider.dart';
 
 class QuickAddSheet extends StatefulWidget {
   final String? initialCategoryId;
+  final String initialType; // 'expense' or 'income'
 
   const QuickAddSheet({
     super.key,
     this.initialCategoryId,
+    this.initialType = 'expense',
   });
 
-  static Future<void> show(BuildContext context, {String? categoryId}) {
+  static Future<void> show(
+    BuildContext context, {
+    String? categoryId,
+    String type = 'expense',
+  }) {
     return showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (ctx) => QuickAddSheet(initialCategoryId: categoryId),
+      builder: (ctx) => QuickAddSheet(
+        initialCategoryId: categoryId,
+        initialType: type,
+      ),
     );
   }
 
@@ -29,22 +38,50 @@ class QuickAddSheet extends StatefulWidget {
 }
 
 class _QuickAddSheetState extends State<QuickAddSheet> {
+  late String _transactionType; // 'expense' or 'income'
   String _amountString = '0';
   String? _selectedCategoryId;
   String? _selectedWalletId;
   DateTime _selectedDate = DateTime.now();
   final TextEditingController _noteController = TextEditingController();
 
+  static const List<double> _incomePresets = [
+    100000.0,
+    500000.0,
+    1000000.0,
+    2500000.0,
+    5000000.0,
+  ];
+
+  static const List<String> _incomeQuickNotes = [
+    'Gaji Bulanan',
+    'Bonus Project',
+    'Dividen & Bunga',
+    'Transfer Masuk',
+    'Uang Saku',
+    'Hasil Jualan',
+    'Freelance',
+  ];
+
   @override
   void initState() {
     super.initState();
+    _transactionType = widget.initialType;
+
     final finance = context.read<FinanceProvider>();
-    final categories = finance.categories;
+    final activeCategories = _transactionType == 'income'
+        ? finance.incomeCategories
+        : finance.expenseCategories;
+
     if (widget.initialCategoryId != null) {
       _selectedCategoryId = widget.initialCategoryId;
-    } else if (categories.isNotEmpty) {
-      final foodExists = categories.any((c) => c.id == 'food');
-      _selectedCategoryId = foodExists ? 'food' : categories.first.id;
+    } else if (activeCategories.isNotEmpty) {
+      if (_transactionType == 'expense') {
+        final foodExists = activeCategories.any((c) => c.id == 'food');
+        _selectedCategoryId = foodExists ? 'food' : activeCategories.first.id;
+      } else {
+        _selectedCategoryId = activeCategories.first.id;
+      }
     }
 
     if (finance.selectedWallet != null) {
@@ -122,12 +159,32 @@ class _QuickAddSheetState extends State<QuickAddSheet> {
     }
   }
 
+  void _switchType(String newType, FinanceProvider finance) {
+    if (_transactionType == newType) return;
+    HapticFeedback.selectionClick();
+    setState(() {
+      _transactionType = newType;
+      final list = newType == 'income'
+          ? finance.incomeCategories
+          : finance.expenseCategories;
+      if (list.isNotEmpty) {
+        _selectedCategoryId = list.first.id;
+      }
+    });
+  }
+
   Future<void> _saveTransaction() async {
     final amount = _currentAmount;
+    final isIncome = _transactionType == 'income';
+
     if (amount <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Masukkan nominal pengeluaran yang valid'),
+        SnackBar(
+          content: Text(
+            isIncome
+                ? 'Masukkan nominal pemasukan yang valid'
+                : 'Masukkan nominal pengeluaran yang valid',
+          ),
           backgroundColor: AppColors.danger,
         ),
       );
@@ -136,8 +193,12 @@ class _QuickAddSheetState extends State<QuickAddSheet> {
 
     if (_selectedCategoryId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Pilih salah satu pos anggaran'),
+        SnackBar(
+          content: Text(
+            isIncome
+                ? 'Pilih salah satu kategori pemasukan'
+                : 'Pilih salah satu pos anggaran pengeluaran',
+          ),
           backgroundColor: AppColors.danger,
         ),
       );
@@ -149,6 +210,7 @@ class _QuickAddSheetState extends State<QuickAddSheet> {
           categoryId: _selectedCategoryId!,
           amount: amount,
           date: _selectedDate,
+          type: _transactionType,
           note: _noteController.text,
           walletId: _selectedWalletId,
         );
@@ -159,7 +221,9 @@ class _QuickAddSheetState extends State<QuickAddSheet> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              'Pengeluaran ${CurrencyFormatter.format(amount)} berhasil disimpan',
+              isIncome
+                  ? 'Pemasukan ${CurrencyFormatter.format(amount)} berhasil dicatat'
+                  : 'Pengeluaran ${CurrencyFormatter.format(amount)} berhasil disimpan',
             ),
             backgroundColor: AppColors.success,
             behavior: SnackBarBehavior.floating,
@@ -173,7 +237,9 @@ class _QuickAddSheetState extends State<QuickAddSheet> {
   Widget build(BuildContext context) {
     final finance = context.watch<FinanceProvider>();
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final categories = finance.categories;
+    final isIncome = _transactionType == 'income';
+    final categories = isIncome ? finance.incomeCategories : finance.expenseCategories;
+    final activeThemeColor = isIncome ? const Color(0xFF10B981) : AppColors.primary;
 
     return Container(
       decoration: BoxDecoration(
@@ -204,14 +270,112 @@ class _QuickAddSheetState extends State<QuickAddSheet> {
             ),
             const SizedBox(height: 12),
 
+            // Toggle Tabs: Pengeluaran vs Pemasukan
+            Container(
+              padding: const EdgeInsets.all(4),
+              decoration: BoxDecoration(
+                color: isDark ? AppColors.darkCard : AppColors.lightCard,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+                ),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: InkWell(
+                      onTap: () => _switchType('expense', finance),
+                      borderRadius: BorderRadius.circular(12),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: !isIncome
+                              ? AppColors.danger.withOpacity(0.18)
+                              : Colors.transparent,
+                          borderRadius: BorderRadius.circular(12),
+                          border: !isIncome
+                              ? Border.all(color: AppColors.danger.withOpacity(0.4), width: 1.2)
+                              : null,
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.arrow_outward_rounded,
+                              size: 16,
+                              color: !isIncome ? AppColors.danger : Colors.grey,
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              'Pengeluaran',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold,
+                                color: !isIncome
+                                    ? AppColors.danger
+                                    : (isDark ? Colors.white70 : Colors.black87),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  Expanded(
+                    child: InkWell(
+                      onTap: () => _switchType('income', finance),
+                      borderRadius: BorderRadius.circular(12),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: isIncome
+                              ? const Color(0xFF10B981).withOpacity(0.18)
+                              : Colors.transparent,
+                          borderRadius: BorderRadius.circular(12),
+                          border: isIncome
+                              ? Border.all(color: const Color(0xFF10B981).withOpacity(0.5), width: 1.2)
+                              : null,
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.arrow_downward_rounded,
+                              size: 16,
+                              color: isIncome ? const Color(0xFF10B981) : Colors.grey,
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              'Pemasukan',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold,
+                                color: isIncome
+                                    ? const Color(0xFF10B981)
+                                    : (isDark ? Colors.white70 : Colors.black87),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 14),
+
             // Header Title & Date Picker Pill
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text(
-                  'Catat Pengeluaran',
-                  style: TextStyle(
-                    fontSize: 18,
+                Text(
+                  isIncome ? 'Catat Pemasukan' : 'Catat Pengeluaran',
+                  style: const TextStyle(
+                    fontSize: 16,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -241,7 +405,7 @@ class _QuickAddSheetState extends State<QuickAddSheet> {
                 ),
               ],
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 14),
 
             // Big Nominal Display
             Container(
@@ -250,15 +414,15 @@ class _QuickAddSheetState extends State<QuickAddSheet> {
                 color: isDark ? AppColors.darkCard : AppColors.lightCardElevated,
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(
-                  color: AppColors.primary.withOpacity(0.3),
+                  color: activeThemeColor.withOpacity(0.3),
                   width: 1.5,
                 ),
               ),
               child: Column(
                 children: [
-                  const Text(
-                    'Nominal Pengeluaran',
-                    style: TextStyle(fontSize: 12, color: Colors.grey),
+                  Text(
+                    isIncome ? 'Nominal Pemasukan' : 'Nominal Pengeluaran',
+                    style: const TextStyle(fontSize: 12, color: Colors.grey),
                   ),
                   const SizedBox(height: 4),
                   FittedBox(
@@ -269,7 +433,7 @@ class _QuickAddSheetState extends State<QuickAddSheet> {
                         fontSize: 36,
                         fontWeight: FontWeight.w900,
                         color: _currentAmount > 0
-                            ? (isDark ? Colors.white : AppColors.primaryDark)
+                            ? (isIncome ? const Color(0xFF10B981) : (isDark ? Colors.white : AppColors.primaryDark))
                             : Colors.grey,
                         letterSpacing: -1,
                       ),
@@ -280,11 +444,11 @@ class _QuickAddSheetState extends State<QuickAddSheet> {
             ),
             const SizedBox(height: 12),
 
-            // Quick Preset Nominal Chips (+15k, +25k, +50k, +100k)
+            // Quick Preset Nominal Chips
             SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               child: Row(
-                children: AppConstants.quickPresets.map((preset) {
+                children: (isIncome ? _incomePresets : AppConstants.quickPresets).map((preset) {
                   return Padding(
                     padding: const EdgeInsets.only(right: 8.0),
                     child: ActionChip(
@@ -292,12 +456,12 @@ class _QuickAddSheetState extends State<QuickAddSheet> {
                       avatar: const Icon(Icons.add_rounded, size: 16),
                       backgroundColor: isDark ? AppColors.darkCardElevated : Colors.white,
                       side: BorderSide(
-                        color: AppColors.primary.withOpacity(0.3),
+                        color: activeThemeColor.withOpacity(0.3),
                       ),
-                      labelStyle: const TextStyle(
+                      labelStyle: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.bold,
-                        color: AppColors.primary,
+                        color: activeThemeColor,
                       ),
                       onPressed: () => _addPreset(preset),
                     ),
@@ -305,11 +469,13 @@ class _QuickAddSheetState extends State<QuickAddSheet> {
                 }).toList(),
               ),
             ),
+            const SizedBox(height: 12),
+
             // Wallet Selection (Horizontal Scroll Chips)
             if (finance.wallets.isNotEmpty) ...[
-              const Text(
-                'Sumber Dompet',
-                style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+              Text(
+                isIncome ? 'Masuk ke Dompet' : 'Sumber Dompet',
+                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 8),
               SingleChildScrollView(
@@ -355,9 +521,9 @@ class _QuickAddSheetState extends State<QuickAddSheet> {
             ],
 
             // Category Selection (Horizontal Scroll Chips)
-            const Text(
-              'Pilih Pos Anggaran',
-              style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+            Text(
+              isIncome ? 'Kategori Pemasukan' : 'Pilih Pos Anggaran',
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
             SingleChildScrollView(
@@ -403,7 +569,9 @@ class _QuickAddSheetState extends State<QuickAddSheet> {
             TextField(
               controller: _noteController,
               decoration: InputDecoration(
-                hintText: 'Catatan pengeluaran (misal: Nasi Padang)',
+                hintText: isIncome
+                    ? 'Catatan pemasukan (misal: Gaji bulanan, project freelance)'
+                    : 'Catatan pengeluaran (misal: Nasi Padang)',
                 hintStyle: const TextStyle(fontSize: 13),
                 prefixIcon: const Icon(Icons.edit_note_rounded, size: 20),
                 contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -422,7 +590,7 @@ class _QuickAddSheetState extends State<QuickAddSheet> {
             SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               child: Row(
-                children: AppConstants.quickNotes.map((note) {
+                children: (isIncome ? _incomeQuickNotes : AppConstants.quickNotes).map((note) {
                   return Padding(
                     padding: const EdgeInsets.only(right: 6.0),
                     child: InkWell(
@@ -456,7 +624,7 @@ class _QuickAddSheetState extends State<QuickAddSheet> {
             ),
             const SizedBox(height: 16),
 
-            // Compact Built-In Numpad (Single Hand Thumb Reach)
+            // Compact Built-In Numpad
             _buildNumpad(isDark),
             const SizedBox(height: 16),
 
@@ -464,7 +632,7 @@ class _QuickAddSheetState extends State<QuickAddSheet> {
             ElevatedButton(
               onPressed: _saveTransaction,
               style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
+                backgroundColor: activeThemeColor,
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 shape: RoundedRectangleBorder(
@@ -472,9 +640,9 @@ class _QuickAddSheetState extends State<QuickAddSheet> {
                 ),
                 elevation: 4,
               ),
-              child: const Text(
-                'Simpan Pengeluaran',
-                style: TextStyle(
+              child: Text(
+                isIncome ? 'Simpan Pemasukan' : 'Simpan Pengeluaran',
+                style: const TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
                 ),

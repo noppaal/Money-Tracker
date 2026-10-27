@@ -20,9 +20,10 @@ class TransactionTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final isIncome = transaction.isIncome;
     final category = transaction.category;
-    final color = category?.color ?? AppColors.primary;
-    final icon = category?.iconData ?? Icons.receipt_rounded;
+    final color = category?.color ?? (isIncome ? AppColors.success : AppColors.primary);
+    final icon = category?.iconData ?? (isIncome ? Icons.payments_rounded : Icons.receipt_rounded);
 
     return Dismissible(
       key: Key(transaction.id),
@@ -54,7 +55,7 @@ class TransactionTile extends StatelessWidget {
           builder: (ctx) => AlertDialog(
             title: const Text('Hapus Transaksi?'),
             content: Text(
-              'Apakah kamu yakin ingin menghapus transaksi "${transaction.note.isNotEmpty ? transaction.note : (category?.name ?? 'Pengeluaran')}" senilai ${CurrencyFormatter.format(transaction.amount)}?',
+              'Apakah kamu yakin ingin menghapus ${isIncome ? "pemasukan" : "pengeluaran"} "${transaction.note.isNotEmpty ? transaction.note : (category?.name ?? (isIncome ? "Pemasukan" : "Pengeluaran"))}" senilai ${CurrencyFormatter.format(transaction.amount)}?',
             ),
             actions: [
               TextButton(
@@ -95,7 +96,9 @@ class TransactionTile extends StatelessWidget {
             child: Icon(icon, color: color, size: 22),
           ),
           title: Text(
-            transaction.note.isNotEmpty ? transaction.note : (category?.name ?? 'Pengeluaran'),
+            transaction.note.isNotEmpty
+                ? transaction.note
+                : (category?.name ?? (isIncome ? 'Pemasukan' : 'Pengeluaran')),
             style: const TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.bold,
@@ -106,7 +109,7 @@ class TransactionTile extends StatelessWidget {
           subtitle: Row(
             children: [
               Text(
-                category?.name ?? 'Umum',
+                category?.name ?? (isIncome ? 'Pemasukan' : 'Pengeluaran'),
                 style: TextStyle(
                   fontSize: 12,
                   color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
@@ -157,11 +160,11 @@ class TransactionTile extends StatelessWidget {
             ],
           ),
           trailing: Text(
-            '-${CurrencyFormatter.format(transaction.amount)}',
-            style: const TextStyle(
+            '${isIncome ? '+' : '-'}${CurrencyFormatter.format(transaction.amount)}',
+            style: TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.bold,
-              color: AppColors.danger,
+              color: isIncome ? AppColors.success : AppColors.danger,
             ),
           ),
         ),

@@ -12,6 +12,7 @@ class Wallet {
 
   // Computed/transient from transactions
   final double spentAmount;
+  final double incomeAmount;
 
   const Wallet({
     required this.id,
@@ -23,6 +24,7 @@ class Wallet {
     required this.createdAt,
     this.isDefault = false,
     this.spentAmount = 0.0,
+    this.incomeAmount = 0.0,
   });
 
   IconData get iconData => IconData(
@@ -32,7 +34,7 @@ class Wallet {
 
   Color get color => Color(colorValue);
 
-  double get currentBalance => initialBalance - spentAmount;
+  double get currentBalance => initialBalance + incomeAmount - spentAmount;
 
   Wallet copyWith({
     String? id,
@@ -44,6 +46,7 @@ class Wallet {
     DateTime? createdAt,
     bool? isDefault,
     double? spentAmount,
+    double? incomeAmount,
   }) {
     return Wallet(
       id: id ?? this.id,
@@ -55,6 +58,7 @@ class Wallet {
       createdAt: createdAt ?? this.createdAt,
       isDefault: isDefault ?? this.isDefault,
       spentAmount: spentAmount ?? this.spentAmount,
+      incomeAmount: incomeAmount ?? this.incomeAmount,
     );
   }
 
@@ -71,7 +75,11 @@ class Wallet {
     };
   }
 
-  factory Wallet.fromMap(Map<String, dynamic> map, {double spent = 0.0}) {
+  factory Wallet.fromMap(
+    Map<String, dynamic> map, {
+    double spent = 0.0,
+    double income = 0.0,
+  }) {
     return Wallet(
       id: map['id'] as String,
       name: map['name'] as String,
@@ -84,6 +92,7 @@ class Wallet {
           : DateTime.now(),
       isDefault: (map['is_default'] as int?) == 1,
       spentAmount: spent,
+      incomeAmount: income,
     );
   }
 

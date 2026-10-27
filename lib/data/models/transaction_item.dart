@@ -5,6 +5,7 @@ class TransactionItem {
   final String id;
   final String categoryId;
   final String walletId;
+  final String type; // 'expense' or 'income'
   final double amount;
   final DateTime date;
   final String note;
@@ -18,6 +19,7 @@ class TransactionItem {
     required this.id,
     required this.categoryId,
     this.walletId = 'wallet_cash',
+    this.type = 'expense',
     required this.amount,
     required this.date,
     this.note = '',
@@ -26,10 +28,14 @@ class TransactionItem {
     this.wallet,
   });
 
+  bool get isIncome => type == 'income';
+  bool get isExpense => type != 'income';
+
   TransactionItem copyWith({
     String? id,
     String? categoryId,
     String? walletId,
+    String? type,
     double? amount,
     DateTime? date,
     String? note,
@@ -41,6 +47,7 @@ class TransactionItem {
       id: id ?? this.id,
       categoryId: categoryId ?? this.categoryId,
       walletId: walletId ?? this.walletId,
+      type: type ?? this.type,
       amount: amount ?? this.amount,
       date: date ?? this.date,
       note: note ?? this.note,
@@ -55,6 +62,7 @@ class TransactionItem {
       'id': id,
       'category_id': categoryId,
       'wallet_id': walletId,
+      'type': type,
       'amount': amount,
       'date': date.toIso8601String(),
       'note': note,
@@ -71,6 +79,7 @@ class TransactionItem {
       id: map['id'] as String,
       categoryId: map['category_id'] as String,
       walletId: (map['wallet_id'] as String?) ?? 'wallet_cash',
+      type: (map['type'] as String?) ?? 'expense',
       amount: (map['amount'] as num).toDouble(),
       date: DateTime.parse(map['date'] as String),
       note: (map['note'] as String?) ?? '',

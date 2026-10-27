@@ -307,9 +307,9 @@ class SummaryCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 18),
 
-                // Breakdown Bottom Row (Total Anggaran & Total Pengeluaran)
+                // Breakdown Bottom Row (Pemasukan, Pengeluaran, Pagu)
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                   decoration: BoxDecoration(
                     color: Colors.black.withOpacity(0.18),
                     borderRadius: BorderRadius.circular(16),
@@ -320,6 +320,7 @@ class SummaryCard extends StatelessWidget {
                   ),
                   child: Row(
                     children: [
+                      // Pemasukan
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -327,31 +328,41 @@ class SummaryCard extends StatelessWidget {
                             Row(
                               children: [
                                 Container(
-                                  width: 8,
-                                  height: 8,
+                                  width: 7,
+                                  height: 7,
                                   decoration: const BoxDecoration(
                                     color: Color(0xFF6EE7B7),
                                     shape: BoxShape.circle,
                                   ),
                                 ),
-                                const SizedBox(width: 6),
+                                const SizedBox(width: 5),
                                 Text(
-                                  'Pagu Anggaran',
+                                  'Pemasukan',
                                   style: TextStyle(
                                     color: Colors.white.withOpacity(0.8),
-                                    fontSize: 11,
+                                    fontSize: 10,
                                     fontWeight: FontWeight.w600,
                                   ),
                                 ),
                               ],
                             ),
-                            const SizedBox(height: 4),
-                            Text(
-                              CurrencyFormatter.format(totalBudget),
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 14,
-                                fontWeight: FontWeight.w800,
+                            const SizedBox(height: 3),
+                            TweenAnimationBuilder<double>(
+                              key: ValueKey('income_${finance.totalIncome}'),
+                              tween: Tween<double>(begin: 0.0, end: finance.totalIncome),
+                              duration: const Duration(milliseconds: 650),
+                              curve: Curves.easeOutCubic,
+                              builder: (context, val, _) => FittedBox(
+                                alignment: Alignment.centerLeft,
+                                fit: BoxFit.scaleDown,
+                                child: Text(
+                                  CurrencyFormatter.format(val),
+                                  style: const TextStyle(
+                                    color: Color(0xFFA7F3D0),
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
                               ),
                             ),
                           ],
@@ -359,20 +370,21 @@ class SummaryCard extends StatelessWidget {
                       ),
                       Container(
                         width: 1,
-                        height: 32,
+                        height: 28,
                         color: Colors.white.withOpacity(0.18),
                       ),
+                      // Pengeluaran
                       Expanded(
                         child: Padding(
-                          padding: const EdgeInsets.only(left: 16.0),
+                          padding: const EdgeInsets.only(left: 8.0),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Row(
                                 children: [
                                   Container(
-                                    width: 8,
-                                    height: 8,
+                                    width: 7,
+                                    height: 7,
                                     decoration: BoxDecoration(
                                       color: isOverbudget
                                           ? const Color(0xFFF87171)
@@ -380,33 +392,87 @@ class SummaryCard extends StatelessWidget {
                                       shape: BoxShape.circle,
                                     ),
                                   ),
-                                  const SizedBox(width: 6),
+                                  const SizedBox(width: 5),
                                   Text(
                                     'Pengeluaran',
                                     style: TextStyle(
                                       color: Colors.white.withOpacity(0.8),
-                                      fontSize: 11,
+                                      fontSize: 10,
                                       fontWeight: FontWeight.w600,
                                     ),
                                   ),
                                 ],
                               ),
-                              const SizedBox(height: 4),
+                              const SizedBox(height: 3),
                               TweenAnimationBuilder<double>(
                                 key: ValueKey('spent_$totalSpent'),
                                 tween: Tween<double>(begin: 0.0, end: totalSpent),
                                 duration: const Duration(milliseconds: 650),
                                 curve: Curves.easeOutCubic,
                                 builder: (context, value, child) {
-                                  return Text(
-                                    CurrencyFormatter.format(value),
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w800,
+                                  return FittedBox(
+                                    alignment: Alignment.centerLeft,
+                                    fit: BoxFit.scaleDown,
+                                    child: Text(
+                                      CurrencyFormatter.format(value),
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w800,
+                                      ),
                                     ),
                                   );
                                 },
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      Container(
+                        width: 1,
+                        height: 28,
+                        color: Colors.white.withOpacity(0.18),
+                      ),
+                      // Pagu Anggaran
+                      Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.only(left: 8.0),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Container(
+                                    width: 7,
+                                    height: 7,
+                                    decoration: const BoxDecoration(
+                                      color: Color(0xFF93C5FD),
+                                      shape: BoxShape.circle,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 5),
+                                  Text(
+                                    'Pagu',
+                                    style: TextStyle(
+                                      color: Colors.white.withOpacity(0.8),
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 3),
+                              FittedBox(
+                                alignment: Alignment.centerLeft,
+                                fit: BoxFit.scaleDown,
+                                child: Text(
+                                  CurrencyFormatter.format(totalBudget),
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
                               ),
                             ],
                           ),

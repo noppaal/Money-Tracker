@@ -42,7 +42,12 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
   Widget build(BuildContext context) {
     final finance = context.watch<FinanceProvider>();
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final categories = finance.categories;
+    final selectedType = finance.selectedTypeFilter;
+
+    final categories = selectedType == 'income'
+        ? finance.incomeCategories
+        : (selectedType == 'expense' ? finance.expenseCategories : finance.categories);
+
     final filtered = finance.filteredTransactions;
     final grouped = _groupTransactions(filtered);
     final sortedKeys = grouped.keys.toList()..sort((a, b) => b.compareTo(a));
@@ -121,9 +126,108 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
       ),
       body: Column(
         children: [
-          // Search & Filter Header
+          // Cash Flow Mini Summary Card
+          Container(
+            margin: const EdgeInsets.fromLTRB(16, 6, 16, 6),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: isDark ? AppColors.darkCard : AppColors.lightCard,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+              ),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Pemasukan',
+                        style: TextStyle(fontSize: 11, color: Colors.grey, fontWeight: FontWeight.w600),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '+${CurrencyFormatter.format(finance.totalIncome)}',
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF10B981),
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  width: 1,
+                  height: 24,
+                  color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+                ),
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.only(left: 12.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Pengeluaran',
+                          style: TextStyle(fontSize: 11, color: Colors.grey, fontWeight: FontWeight.w600),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          '-${CurrencyFormatter.format(finance.totalSpent)}',
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFFEF4444),
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                Container(
+                  width: 1,
+                  height: 24,
+                  color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+                ),
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.only(left: 12.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Arus Kas',
+                          style: TextStyle(fontSize: 11, color: Colors.grey, fontWeight: FontWeight.w600),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          '${finance.netCashFlow >= 0 ? '+' : ''}${CurrencyFormatter.format(finance.netCashFlow)}',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w800,
+                            color: finance.netCashFlow >= 0 ? const Color(0xFF10B981) : const Color(0xFFEF4444),
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // Search Field
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 6.0),
             child: TextField(
               controller: _searchController,
               decoration: InputDecoration(
@@ -144,14 +248,80 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
             ),
           ),
 
+          // Type Filter Tabs: [ Semua ] [ 🔴 Pengeluaran ] [ 🟢 Pemasukan ]
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 2.0),
+            child: Row(
+              children: [
+                Expanded(
+                  child: ChoiceChip(
+                    label: const Text('Semua'),
+                    selected: selectedType == 'all',
+                    onSelected: (_) => finance.setTypeFilter('all'),
+                    selectedColor: AppColors.primary.withOpacity(0.2),
+                    labelStyle: TextStyle(
+                      fontSize: 12,
+                      fontWeight: selectedType == 'all' ? FontWeight.bold : FontWeight.normal,
+                      color: selectedType == 'all' ? AppColors.primary : null,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: ChoiceChip(
+                    label: const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.arrow_outward_rounded, size: 14, color: AppColors.danger),
+                        SizedBox(width: 4),
+                        Text('Pengeluaran'),
+                      ],
+                    ),
+                    selected: selectedType == 'expense',
+                    onSelected: (_) => finance.setTypeFilter('expense'),
+                    selectedColor: AppColors.danger.withOpacity(0.18),
+                    labelStyle: TextStyle(
+                      fontSize: 12,
+                      fontWeight: selectedType == 'expense' ? FontWeight.bold : FontWeight.normal,
+                      color: selectedType == 'expense' ? AppColors.danger : null,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: ChoiceChip(
+                    label: const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.arrow_downward_rounded, size: 14, color: Color(0xFF10B981)),
+                        SizedBox(width: 4),
+                        Text('Pemasukan'),
+                      ],
+                    ),
+                    selected: selectedType == 'income',
+                    onSelected: (_) => finance.setTypeFilter('income'),
+                    selectedColor: const Color(0xFF10B981).withOpacity(0.18),
+                    labelStyle: TextStyle(
+                      fontSize: 12,
+                      fontWeight: selectedType == 'income' ? FontWeight.bold : FontWeight.normal,
+                      color: selectedType == 'income' ? const Color(0xFF10B981) : null,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
           // Category Filter Chips
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 6.0),
+            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
             child: Row(
               children: [
                 FilterChip(
-                  label: const Text('Semua'),
+                  label: const Text('Semua Kategori'),
                   selected: finance.selectedCategoryFilter == null,
                   onSelected: (_) => finance.setCategoryFilter(null),
                   selectedColor: AppColors.primary.withOpacity(0.2),
@@ -178,7 +348,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
             ),
           ),
 
-          const Divider(height: 16),
+          const Divider(height: 12),
 
           // Transaction List Grouped by Date
           Expanded(
@@ -203,7 +373,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          'Tekan tombol (+) di bawah untuk mencatat pengeluaran',
+                          'Tekan tombol (+) di bawah untuk mencatat transaksi',
                           style: TextStyle(
                             fontSize: 12,
                             color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
@@ -219,12 +389,17 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                       final key = sortedKeys[index];
                       final items = grouped[key]!;
                       final dateObj = items.first.date;
-                      final dailyTotal = items.fold(0.0, (sum, item) => sum + item.amount);
+                      final dailyExpense = items
+                          .where((i) => i.isExpense)
+                          .fold(0.0, (sum, item) => sum + item.amount);
+                      final dailyIncome = items
+                          .where((i) => i.isIncome)
+                          .fold(0.0, (sum, item) => sum + item.amount);
 
                       return Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          // Group Header (Date & Daily Total)
+                          // Group Header (Date & Daily Stats)
                           Padding(
                             padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 4.0),
                             child: Row(
@@ -237,20 +412,42 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                                     fontWeight: FontWeight.bold,
                                   ),
                                 ),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                  decoration: BoxDecoration(
-                                    color: (isDark ? AppColors.darkCardElevated : Colors.grey.shade200),
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
-                                  child: Text(
-                                    'Total: ${CurrencyFormatter.format(dailyTotal)}',
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w600,
-                                      color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
-                                    ),
-                                  ),
+                                Row(
+                                  children: [
+                                    if (dailyIncome > 0)
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFF10B981).withOpacity(0.14),
+                                          borderRadius: BorderRadius.circular(8),
+                                        ),
+                                        child: Text(
+                                          '+${CurrencyFormatter.format(dailyIncome)}',
+                                          style: const TextStyle(
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.bold,
+                                            color: Color(0xFF10B981),
+                                          ),
+                                        ),
+                                      ),
+                                    if (dailyIncome > 0 && dailyExpense > 0) const SizedBox(width: 4),
+                                    if (dailyExpense > 0)
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                        decoration: BoxDecoration(
+                                          color: AppColors.danger.withOpacity(0.14),
+                                          borderRadius: BorderRadius.circular(8),
+                                        ),
+                                        child: Text(
+                                          '-${CurrencyFormatter.format(dailyExpense)}',
+                                          style: const TextStyle(
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.bold,
+                                            color: AppColors.danger,
+                                          ),
+                                        ),
+                                      ),
+                                  ],
                                 ),
                               ],
                             ),
