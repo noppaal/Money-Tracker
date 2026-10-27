@@ -1,8 +1,11 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
+import 'db_platform.dart';
 import '../models/budget_category.dart';
 import '../models/transaction_item.dart';
+import '../models/wallet.dart';
 import '../../core/constants/app_constants.dart';
 
 class DatabaseHelper {
@@ -18,18 +21,61 @@ class DatabaseHelper {
   }
 
   Future<Database> _initDB(String filePath) async {
-    final dbPath = await getDatabasesPath();
-    final path = join(dbPath, filePath);
+    initPlatformDatabase();
 
-    return await openDatabase(
-      path,
-      version: AppConstants.dbVersion,
-      onCreate: _createDB,
-    );
+    String path;
+    if (kIsWeb) {
+      path = filePath;
+    } else {
+      final dbPath = await getDatabasesPath();
+      path = join(dbPath, filePath);
+    }
+
+    Database db;
+    try {
+      db = await openDatabase(
+        path,
+        version: AppConstants.dbVersion,
+        onCreate: _createDB,
+      );
+    } catch (e) {
+      if (kIsWeb) {
+        db = await openDatabase(
+          inMemoryDatabasePath,
+          version: AppConstants.dbVersion,
+          onCreate: _createDB,
+        );
+      } else {
+        rethrow;
+      }
+    }
+
+    // Ensure wallets and schema are up to date on any existing database
+    try {
+      await _ensureSchemaUpToDate(db);
+    } catch (e) {
+      debugPrint('Schema update warning: $e');
+    }
+
+    return db;
   }
 
   Future<void> _createDB(Database db, int version) async {
-    // 1. Create Categories Table
+    // 1. Create Wallets Table
+    await db.execute('''
+      CREATE TABLE wallets (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        initial_balance REAL NOT NULL,
+        icon_code_point INTEGER NOT NULL,
+        icon_font_family TEXT,
+        color_value INTEGER NOT NULL,
+        created_at TEXT NOT NULL,
+        is_default INTEGER NOT NULL
+      )
+    ''');
+
+    // 2. Create Categories Table
     await db.execute('''
       CREATE TABLE categories (
         id TEXT PRIMARY KEY,
@@ -43,25 +89,145 @@ class DatabaseHelper {
       )
     ''');
 
-    // 2. Create Transactions Table
+    // 3. Create Transactions Table
     await db.execute('''
       CREATE TABLE transactions (
         id TEXT PRIMARY KEY,
         category_id TEXT NOT NULL,
+        wallet_id TEXT NOT NULL DEFAULT 'wallet_cash',
         amount REAL NOT NULL,
         date TEXT NOT NULL,
         note TEXT,
         created_at TEXT NOT NULL,
-        FOREIGN KEY (category_id) REFERENCES categories (id) ON DELETE CASCADE
+        FOREIGN KEY (category_id) REFERENCES categories (id) ON DELETE CASCADE,
+        FOREIGN KEY (wallet_id) REFERENCES wallets (id) ON DELETE CASCADE
       )
     ''');
 
-    // 3. Seed Default 8 Budget Categories (Rp4.500.000 total)
-    final batch = db.batch();
-    for (final category in BudgetCategory.defaultCategories) {
-      batch.insert('categories', category.toMap());
+    // 4. Seed Default Wallets
+    final walletBatch = db.batch();
+    for (final wallet in Wallet.defaultWallets) {
+      walletBatch.insert('wallets', wallet.toMap());
     }
-    await batch.commit(noResult: true);
+    await walletBatch.commit(noResult: true);
+
+    // 5. Seed Default 8 Budget Categories (Rp4.500.000 total)
+    final catBatch = db.batch();
+    for (final category in BudgetCategory.defaultCategories) {
+      catBatch.insert('categories', category.toMap());
+    }
+    await catBatch.commit(noResult: true);
+  }
+
+  Future<void> _ensureSchemaUpToDate(Database db) async {
+    // 1. Create wallets table if it doesn't exist
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS wallets (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        initial_balance REAL NOT NULL,
+        icon_code_point INTEGER NOT NULL,
+        icon_font_family TEXT,
+        color_value INTEGER NOT NULL,
+        created_at TEXT NOT NULL,
+        is_default INTEGER NOT NULL
+      )
+    ''');
+
+    // 2. Seed default wallets if empty
+    final count = Sqflite.firstIntValue(
+      await db.rawQuery('SELECT COUNT(*) FROM wallets'),
+    ) ?? 0;
+    if (count == 0) {
+      final batch = db.batch();
+      for (final w in Wallet.defaultWallets) {
+        batch.insert('wallets', w.toMap());
+      }
+      await batch.commit(noResult: true);
+    }
+
+    // 3. Ensure wallet_id column in transactions exists
+    try {
+      await db.execute("ALTER TABLE transactions ADD COLUMN wallet_id TEXT DEFAULT 'wallet_cash'");
+    } catch (_) {
+      // Column already exists
+    }
+  }
+
+  // ================= WALLET OPERATIONS =================
+
+  Future<List<Wallet>> getAllWallets() async {
+    final db = await database;
+    final walletsResult = await db.query('wallets', orderBy: 'is_default DESC, created_at ASC');
+
+    // Calculate total spent per wallet
+    final spentResult = await db.rawQuery('''
+      SELECT wallet_id, SUM(amount) as total_spent
+      FROM transactions
+      GROUP BY wallet_id
+    ''');
+
+    final Map<String, double> spentMap = {};
+    for (final row in spentResult) {
+      final wId = row['wallet_id'] as String? ?? 'wallet_cash';
+      final total = (row['total_spent'] as num?)?.toDouble() ?? 0.0;
+      spentMap[wId] = total;
+    }
+
+    return walletsResult.map((map) {
+      final id = map['id'] as String;
+      final spent = spentMap[id] ?? 0.0;
+      return Wallet.fromMap(map, spent: spent);
+    }).toList();
+  }
+
+  Future<int> insertWallet(Wallet wallet) async {
+    final db = await database;
+    return await db.insert(
+      'wallets',
+      wallet.toMap(),
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<int> updateWallet(Wallet wallet) async {
+    final db = await database;
+    return await db.update(
+      'wallets',
+      wallet.toMap(),
+      where: 'id = ?',
+      whereArgs: [wallet.id],
+    );
+  }
+
+  Future<int> deleteWallet(String id) async {
+    final db = await database;
+    return await db.transaction((txn) async {
+      // Reassign transactions to default wallet before deleting, or delete them
+      final defaultWallet = await txn.query(
+        'wallets',
+        where: 'id != ?',
+        orderBy: 'is_default DESC, created_at ASC',
+        limit: 1,
+      );
+
+      final fallbackWalletId = defaultWallet.isNotEmpty
+          ? (defaultWallet.first['id'] as String)
+          : 'wallet_cash';
+
+      await txn.update(
+        'transactions',
+        {'wallet_id': fallbackWalletId},
+        where: 'wallet_id = ?',
+        whereArgs: [id],
+      );
+
+      return await txn.delete(
+        'wallets',
+        where: 'id = ?',
+        whereArgs: [id],
+      );
+    });
   }
 
   // ================= CATEGORY OPERATIONS =================
@@ -140,19 +306,36 @@ class DatabaseHelper {
     );
   }
 
-  Future<List<TransactionItem>> getTransactionsForMonth(int year, int month) async {
+  Future<List<TransactionItem>> getTransactionsForMonth(
+    int year,
+    int month, {
+    String? walletId,
+  }) async {
     final db = await database;
     final startDate = DateTime(year, month, 1).toIso8601String();
     final endDate = DateTime(year, month + 1, 0, 23, 59, 59).toIso8601String();
 
+    String whereClause = 't.date >= ? AND t.date <= ?';
+    List<dynamic> whereArgs = [startDate, endDate];
+
+    if (walletId != null && walletId.isNotEmpty && walletId != 'all') {
+      whereClause += ' AND t.wallet_id = ?';
+      whereArgs.add(walletId);
+    }
+
     final result = await db.rawQuery('''
-      SELECT t.*, c.name as category_name, c.allocated_amount as category_allocated,
-             c.icon_code_point, c.icon_font_family, c.color_value, c.sort_order, c.is_default
+      SELECT t.*, 
+             c.name as category_name, c.allocated_amount as category_allocated,
+             c.icon_code_point as category_icon, c.icon_font_family as category_font,
+             c.color_value as category_color, c.sort_order as category_sort, c.is_default as category_default,
+             w.name as wallet_name, w.initial_balance as wallet_initial,
+             w.icon_code_point as wallet_icon, w.color_value as wallet_color
       FROM transactions t
       LEFT JOIN categories c ON t.category_id = c.id
-      WHERE t.date >= ? AND t.date <= ?
+      LEFT JOIN wallets w ON t.wallet_id = w.id
+      WHERE $whereClause
       ORDER BY t.date DESC, t.created_at DESC
-    ''', [startDate, endDate]);
+    ''', whereArgs);
 
     return result.map((row) {
       BudgetCategory? category;
@@ -161,28 +344,53 @@ class DatabaseHelper {
           id: row['category_id'] as String,
           name: row['category_name'] as String,
           allocatedAmount: (row['category_allocated'] as num).toDouble(),
-          iconCodePoint: row['icon_code_point'] as int,
-          iconFontFamily: row['icon_font_family'] as String?,
-          colorValue: row['color_value'] as int,
-          sortOrder: (row['sort_order'] as int?) ?? 0,
-          isDefault: (row['is_default'] as int?) == 1,
+          iconCodePoint: (row['category_icon'] as int?) ?? 0,
+          iconFontFamily: row['category_font'] as String?,
+          colorValue: (row['category_color'] as int?) ?? 0,
+          sortOrder: (row['category_sort'] as int?) ?? 0,
+          isDefault: (row['category_default'] as int?) == 1,
         );
       }
-      return TransactionItem.fromMap(row, category: category);
+
+      Wallet? wallet;
+      if (row['wallet_name'] != null) {
+        wallet = Wallet(
+          id: (row['wallet_id'] as String?) ?? 'wallet_cash',
+          name: row['wallet_name'] as String,
+          initialBalance: (row['wallet_initial'] as num?)?.toDouble() ?? 0.0,
+          iconCodePoint: (row['wallet_icon'] as int?) ?? 0,
+          colorValue: (row['wallet_color'] as int?) ?? 0,
+          createdAt: DateTime.now(),
+        );
+      }
+
+      return TransactionItem.fromMap(row, category: category, wallet: wallet);
     }).toList();
   }
 
-  Future<Map<String, double>> getSpentPerCategoryForMonth(int year, int month) async {
+  Future<Map<String, double>> getSpentPerCategoryForMonth(
+    int year,
+    int month, {
+    String? walletId,
+  }) async {
     final db = await database;
     final startDate = DateTime(year, month, 1).toIso8601String();
     final endDate = DateTime(year, month + 1, 0, 23, 59, 59).toIso8601String();
 
+    String whereClause = 'date >= ? AND date <= ?';
+    List<dynamic> whereArgs = [startDate, endDate];
+
+    if (walletId != null && walletId.isNotEmpty && walletId != 'all') {
+      whereClause += ' AND wallet_id = ?';
+      whereArgs.add(walletId);
+    }
+
     final result = await db.rawQuery('''
       SELECT category_id, SUM(amount) as total_spent
       FROM transactions
-      WHERE date >= ? AND date <= ?
+      WHERE $whereClause
       GROUP BY category_id
-    ''', [startDate, endDate]);
+    ''', whereArgs);
 
     final Map<String, double> spentMap = {};
     for (final row in result) {
@@ -193,15 +401,29 @@ class DatabaseHelper {
     return spentMap;
   }
 
-  Future<List<TransactionItem>> getAllTransactions() async {
+  Future<List<TransactionItem>> getAllTransactions({String? walletId}) async {
     final db = await database;
+    String whereClause = '';
+    List<dynamic> whereArgs = [];
+
+    if (walletId != null && walletId.isNotEmpty && walletId != 'all') {
+      whereClause = 'WHERE t.wallet_id = ?';
+      whereArgs.add(walletId);
+    }
+
     final result = await db.rawQuery('''
-      SELECT t.*, c.name as category_name, c.allocated_amount as category_allocated,
-             c.icon_code_point, c.icon_font_family, c.color_value, c.sort_order, c.is_default
+      SELECT t.*, 
+             c.name as category_name, c.allocated_amount as category_allocated,
+             c.icon_code_point as category_icon, c.icon_font_family as category_font,
+             c.color_value as category_color, c.sort_order as category_sort, c.is_default as category_default,
+             w.name as wallet_name, w.initial_balance as wallet_initial,
+             w.icon_code_point as wallet_icon, w.color_value as wallet_color
       FROM transactions t
       LEFT JOIN categories c ON t.category_id = c.id
+      LEFT JOIN wallets w ON t.wallet_id = w.id
+      $whereClause
       ORDER BY t.date DESC, t.created_at DESC
-    ''');
+    ''', whereArgs);
 
     return result.map((row) {
       BudgetCategory? category;
@@ -210,12 +432,24 @@ class DatabaseHelper {
           id: row['category_id'] as String,
           name: row['category_name'] as String,
           allocatedAmount: (row['category_allocated'] as num).toDouble(),
-          iconCodePoint: row['icon_code_point'] as int,
-          iconFontFamily: row['icon_font_family'] as String?,
-          colorValue: row['color_value'] as int,
+          iconCodePoint: (row['category_icon'] as int?) ?? 0,
+          colorValue: (row['category_color'] as int?) ?? 0,
         );
       }
-      return TransactionItem.fromMap(row, category: category);
+
+      Wallet? wallet;
+      if (row['wallet_name'] != null) {
+        wallet = Wallet(
+          id: (row['wallet_id'] as String?) ?? 'wallet_cash',
+          name: row['wallet_name'] as String,
+          initialBalance: (row['wallet_initial'] as num?)?.toDouble() ?? 0.0,
+          iconCodePoint: (row['wallet_icon'] as int?) ?? 0,
+          colorValue: (row['wallet_color'] as int?) ?? 0,
+          createdAt: DateTime.now(),
+        );
+      }
+
+      return TransactionItem.fromMap(row, category: category, wallet: wallet);
     }).toList();
   }
 
@@ -223,12 +457,21 @@ class DatabaseHelper {
 
   Future<void> restoreAllData(
     List<BudgetCategory> categories,
-    List<TransactionItem> transactions,
-  ) async {
+    List<TransactionItem> transactions, {
+    List<Wallet>? wallets,
+  }) async {
     final db = await database;
     await db.transaction((txn) async {
       await txn.delete('transactions');
       await txn.delete('categories');
+      if (wallets != null && wallets.isNotEmpty) {
+        await txn.delete('wallets');
+        final walletBatch = txn.batch();
+        for (final w in wallets) {
+          walletBatch.insert('wallets', w.toMap());
+        }
+        await walletBatch.commit(noResult: true);
+      }
 
       final catBatch = txn.batch();
       for (final cat in categories) {
@@ -249,11 +492,19 @@ class DatabaseHelper {
     await db.transaction((txn) async {
       await txn.delete('transactions');
       await txn.delete('categories');
-      final batch = txn.batch();
-      for (final category in BudgetCategory.defaultCategories) {
-        batch.insert('categories', category.toMap());
+      await txn.delete('wallets');
+
+      final walletBatch = txn.batch();
+      for (final w in Wallet.defaultWallets) {
+        walletBatch.insert('wallets', w.toMap());
       }
-      await batch.commit(noResult: true);
+      await walletBatch.commit(noResult: true);
+
+      final catBatch = txn.batch();
+      for (final category in BudgetCategory.defaultCategories) {
+        catBatch.insert('categories', category.toMap());
+      }
+      await catBatch.commit(noResult: true);
     });
   }
 }

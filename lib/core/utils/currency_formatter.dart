@@ -1,12 +1,6 @@
 import 'package:intl/intl.dart';
 
 class CurrencyFormatter {
-  static final NumberFormat _formatter = NumberFormat.currency(
-    locale: 'id_ID',
-    symbol: 'Rp',
-    decimalDigits: 0,
-  );
-
   static final NumberFormat _numberOnly = NumberFormat('#,###', 'id_ID');
 
   /// Formats double amount to 'Rp1.800.000'

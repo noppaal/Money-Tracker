@@ -5,7 +5,6 @@ import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/utils/currency_formatter.dart';
 import '../../core/utils/date_formatter.dart';
-import '../../data/models/budget_category.dart';
 import '../../providers/finance_provider.dart';
 
 class QuickAddSheet extends StatefulWidget {
@@ -32,19 +31,26 @@ class QuickAddSheet extends StatefulWidget {
 class _QuickAddSheetState extends State<QuickAddSheet> {
   String _amountString = '0';
   String? _selectedCategoryId;
+  String? _selectedWalletId;
   DateTime _selectedDate = DateTime.now();
   final TextEditingController _noteController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
-    final categories = context.read<FinanceProvider>().categories;
+    final finance = context.read<FinanceProvider>();
+    final categories = finance.categories;
     if (widget.initialCategoryId != null) {
       _selectedCategoryId = widget.initialCategoryId;
     } else if (categories.isNotEmpty) {
-      // Default to 'food' if available, otherwise first category
       final foodExists = categories.any((c) => c.id == 'food');
       _selectedCategoryId = foodExists ? 'food' : categories.first.id;
+    }
+
+    if (finance.selectedWallet != null) {
+      _selectedWalletId = finance.selectedWallet!.id;
+    } else if (finance.wallets.isNotEmpty) {
+      _selectedWalletId = finance.wallets.first.id;
     }
   }
 
@@ -144,6 +150,7 @@ class _QuickAddSheetState extends State<QuickAddSheet> {
           amount: amount,
           date: _selectedDate,
           note: _noteController.text,
+          walletId: _selectedWalletId,
         );
 
     if (mounted) {
@@ -298,7 +305,54 @@ class _QuickAddSheetState extends State<QuickAddSheet> {
                 }).toList(),
               ),
             ),
-            const SizedBox(height: 16),
+            // Wallet Selection (Horizontal Scroll Chips)
+            if (finance.wallets.isNotEmpty) ...[
+              const Text(
+                'Sumber Dompet',
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: finance.wallets.map((w) {
+                    final isSelected = _selectedWalletId == w.id;
+                    return Padding(
+                      padding: const EdgeInsets.only(right: 8.0),
+                      child: ChoiceChip(
+                        selected: isSelected,
+                        label: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              w.iconData,
+                              size: 16,
+                              color: isSelected ? Colors.white : w.color,
+                            ),
+                            const SizedBox(width: 6),
+                            Text(w.name),
+                          ],
+                        ),
+                        selectedColor: w.color,
+                        labelStyle: TextStyle(
+                          color: isSelected ? Colors.white : (isDark ? Colors.white70 : Colors.black87),
+                          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                          fontSize: 12,
+                        ),
+                        onSelected: (val) {
+                          if (val) {
+                            setState(() {
+                              _selectedWalletId = w.id;
+                            });
+                          }
+                        },
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ),
+              const SizedBox(height: 14),
+            ],
 
             // Category Selection (Horizontal Scroll Chips)
             const Text(
@@ -433,13 +487,6 @@ class _QuickAddSheetState extends State<QuickAddSheet> {
   }
 
   Widget _buildNumpad(bool isDark) {
-    final keys = [
-      ['1', '2', '3'],
-      ['4', '5', '6'],
-      ['7', '8', '9'],
-      ['C', '0', '000', 'BACK'],
-    ];
-
     return Container(
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(

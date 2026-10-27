@@ -16,6 +16,14 @@ class MainScreen extends StatefulWidget {
 class _MainScreenState extends State<MainScreen> {
   int _currentIndex = 0;
 
+  void _onTabChanged(int index) {
+    if (_currentIndex == index) return;
+    HapticFeedback.selectionClick();
+    setState(() {
+      _currentIndex = index;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -23,7 +31,6 @@ class _MainScreenState extends State<MainScreen> {
     final screens = [
       DashboardScreen(
         onSelectCategory: (categoryId) {
-          // Open quick add pre-selected with this category
           QuickAddSheet.show(context, categoryId: categoryId);
         },
       ),
@@ -32,54 +39,91 @@ class _MainScreenState extends State<MainScreen> {
     ];
 
     return Scaffold(
-      body: IndexedStack(
-        index: _currentIndex,
-        children: screens,
-      ),
-      // Floating Action Button (+) centered and elevated for single-hand reach
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {
-          HapticFeedback.mediumImpact();
-          QuickAddSheet.show(context);
-        },
-        icon: const Icon(Icons.add_rounded, size: 24),
-        label: const Text(
-          'Catat',
-          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 580),
+          child: IndexedStack(
+            index: _currentIndex,
+            children: screens,
+          ),
         ),
-        backgroundColor: AppColors.primary,
-        foregroundColor: Colors.white,
-        elevation: 6,
       ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
-      // Material 3 NavigationBar
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _currentIndex,
-        onDestinationSelected: (index) {
-          HapticFeedback.selectionClick();
-          setState(() {
-            _currentIndex = index;
-          });
-        },
-        backgroundColor: isDark ? AppColors.darkSurface : AppColors.lightSurface,
-        indicatorColor: AppColors.primary.withOpacity(0.2),
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.dashboard_outlined),
-            selectedIcon: Icon(Icons.dashboard_rounded, color: AppColors.primary),
-            label: 'Ringkasan',
+      floatingActionButton: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 580),
+          child: Align(
+            alignment: Alignment.bottomRight,
+            child: Padding(
+              padding: const EdgeInsets.only(right: 16.0, bottom: 8.0),
+              child: FloatingActionButton.extended(
+                onPressed: () {
+                  HapticFeedback.mediumImpact();
+                  QuickAddSheet.show(context);
+                },
+                icon: const Icon(Icons.add_rounded, size: 22),
+                label: const Text(
+                  'Catat',
+                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+                ),
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
+                elevation: 6,
+              ),
+            ),
           ),
-          NavigationDestination(
-            icon: Icon(Icons.receipt_long_outlined),
-            selectedIcon: Icon(Icons.receipt_long_rounded, color: AppColors.primary),
-            label: 'Transaksi',
+        ),
+      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+      bottomNavigationBar: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 580),
+          child: Container(
+            decoration: BoxDecoration(
+              color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
+              border: Border(
+                top: BorderSide(
+                  color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+                  width: 1.0,
+                ),
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(isDark ? 0.35 : 0.06),
+                  blurRadius: 16,
+                  offset: const Offset(0, -4),
+                ),
+              ],
+            ),
+            child: SafeArea(
+              top: false,
+              child: NavigationBar(
+                selectedIndex: _currentIndex,
+                onDestinationSelected: _onTabChanged,
+                backgroundColor: Colors.transparent,
+                elevation: 0,
+                indicatorColor: AppColors.primary.withOpacity(0.18),
+                labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+                destinations: const [
+                  NavigationDestination(
+                    icon: Icon(Icons.dashboard_outlined),
+                    selectedIcon: Icon(Icons.dashboard_rounded, color: AppColors.primary),
+                    label: 'Ringkasan',
+                  ),
+                  NavigationDestination(
+                    icon: Icon(Icons.receipt_long_outlined),
+                    selectedIcon: Icon(Icons.receipt_long_rounded, color: AppColors.primary),
+                    label: 'Transaksi',
+                  ),
+                  NavigationDestination(
+                    icon: Icon(Icons.settings_outlined),
+                    selectedIcon: Icon(Icons.settings_rounded, color: AppColors.primary),
+                    label: 'Pengaturan',
+                  ),
+                ],
+              ),
+            ),
           ),
-          NavigationDestination(
-            icon: Icon(Icons.settings_outlined),
-            selectedIcon: Icon(Icons.settings_rounded, color: AppColors.primary),
-            label: 'Pengaturan',
-          ),
-        ],
+        ),
       ),
     );
   }

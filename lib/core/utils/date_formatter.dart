@@ -1,7 +1,6 @@
 import 'package:intl/intl.dart';
 
 class DateFormatter {
-  static final DateFormat _fullDate = DateFormat('EEEE, d MMMM yyyy', 'id_ID');
   static final DateFormat _shortDate = DateFormat('d MMM yyyy', 'id_ID');
   static final DateFormat _monthYear = DateFormat('MMMM yyyy', 'id_ID');
   static final DateFormat _timeOnly = DateFormat('HH:mm', 'id_ID');

@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import '../data/database/database_helper.dart';
 import '../data/models/budget_category.dart';
 import '../data/models/transaction_item.dart';
+import '../data/models/wallet.dart';
 import '../core/utils/date_formatter.dart';
 import '../core/constants/app_constants.dart';
 
@@ -9,6 +10,8 @@ class FinanceProvider with ChangeNotifier {
   final DatabaseHelper _dbHelper = DatabaseHelper.instance;
 
   DateTime _selectedMonth = DateTime.now();
+  List<Wallet> _wallets = [];
+  String? _selectedWalletId; // specific wallet id or 'all'
   List<BudgetCategory> _categories = [];
   List<TransactionItem> _transactions = [];
   bool _isLoading = false;
@@ -24,6 +27,20 @@ class FinanceProvider with ChangeNotifier {
 
   // Getters
   DateTime get selectedMonth => _selectedMonth;
+  List<Wallet> get wallets => _wallets;
+  String? get selectedWalletId => _selectedWalletId;
+
+  Wallet? get selectedWallet {
+    if (_selectedWalletId == 'all' || _selectedWalletId == null) {
+      return null;
+    }
+    try {
+      return _wallets.firstWhere((w) => w.id == _selectedWalletId);
+    } catch (_) {
+      return _wallets.isNotEmpty ? _wallets.first : null;
+    }
+  }
+
   List<BudgetCategory> get categories => _categories;
   List<TransactionItem> get transactions => _transactions;
   bool get isLoading => _isLoading;
@@ -43,7 +60,21 @@ class FinanceProvider with ChangeNotifier {
     }).toList();
   }
 
-  // Financial Summaries for Current Month
+  // Financial Summaries
+  double get totalWalletBalance {
+    if (selectedWallet != null) {
+      return selectedWallet!.currentBalance;
+    }
+    return _wallets.fold(0.0, (sum, w) => sum + w.currentBalance);
+  }
+
+  double get totalInitialBalance {
+    if (selectedWallet != null) {
+      return selectedWallet!.initialBalance;
+    }
+    return _wallets.fold(0.0, (sum, w) => sum + w.initialBalance);
+  }
+
   double get totalBudget {
     return _categories.fold(0.0, (sum, cat) => sum + cat.allocatedAmount);
   }
@@ -73,8 +104,6 @@ class FinanceProvider with ChangeNotifier {
     return DateFormatter.getRemainingDaysInMonth(_selectedMonth);
   }
 
-  /// Sisa budget makan harian dihitung dari:
-  /// (Sisa Budget Makan) / (Sisa Hari dalam Bulan Ini)
   double get dailyMealAllowance {
     final food = foodCategory;
     if (food == null) return 0.0;
@@ -84,9 +113,7 @@ class FinanceProvider with ChangeNotifier {
     return remainingFoodBudget / (days > 0 ? days : 1);
   }
 
-  /// Baseline comparison ratio for Meal Gauge
   double get mealHealthRatio {
-    // Baseline is AppConstants.defaultDailyMealTarget (Rp60.000)
     const baseline = AppConstants.defaultDailyMealTarget;
     if (baseline == 0) return 1.0;
     return (dailyMealAllowance / baseline).clamp(0.0, 1.5);
@@ -100,22 +127,30 @@ class FinanceProvider with ChangeNotifier {
     notifyListeners();
 
     try {
-      // 1. Fetch all categories
+      // 1. Fetch all wallets
+      _wallets = await _dbHelper.getAllWallets();
+      if (_wallets.isNotEmpty && _selectedWalletId == null) {
+        _selectedWalletId = _wallets.first.id;
+      }
+
+      // 2. Fetch all categories
       final dbCategories = await _dbHelper.getAllCategories();
 
-      // 2. Fetch monthly transactions
+      // 3. Fetch transactions for selected month and active wallet
       final monthTransactions = await _dbHelper.getTransactionsForMonth(
         _selectedMonth.year,
         _selectedMonth.month,
+        walletId: _selectedWalletId,
       );
 
-      // 3. Fetch spent per category for the selected month
+      // 4. Fetch spent per category for the selected month and wallet
       final spentMap = await _dbHelper.getSpentPerCategoryForMonth(
         _selectedMonth.year,
         _selectedMonth.month,
+        walletId: _selectedWalletId,
       );
 
-      // 4. Update categories with computed spent amount
+      // 5. Update categories with computed spent amount
       _categories = dbCategories.map((cat) {
         final spent = spentMap[cat.id] ?? 0.0;
         return cat.copyWith(spentAmount: spent);
@@ -128,6 +163,11 @@ class FinanceProvider with ChangeNotifier {
       _isLoading = false;
       notifyListeners();
     }
+  }
+
+  void selectWallet(String? walletId) {
+    _selectedWalletId = walletId;
+    loadData();
   }
 
   void changeMonth(DateTime newMonth) {
@@ -145,19 +185,90 @@ class FinanceProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  // ================= MUTATIONS =================
+  // ================= WALLET MUTATIONS =================
+
+  Future<bool> addWallet({
+    required String name,
+    required double initialBalance,
+    required int iconCodePoint,
+    required int colorValue,
+  }) async {
+    try {
+      final now = DateTime.now();
+      final newWallet = Wallet(
+        id: 'wallet_${now.millisecondsSinceEpoch}',
+        name: name.trim(),
+        initialBalance: initialBalance,
+        iconCodePoint: iconCodePoint,
+        colorValue: colorValue,
+        createdAt: now,
+        isDefault: false,
+      );
+
+      await _dbHelper.insertWallet(newWallet);
+      _selectedWalletId = newWallet.id;
+      await loadData();
+      return true;
+    } catch (e) {
+      _errorMessage = 'Gagal menambah dompet: $e';
+      notifyListeners();
+      return false;
+    }
+  }
+
+  Future<bool> updateWallet(Wallet wallet) async {
+    try {
+      await _dbHelper.updateWallet(wallet);
+      await loadData();
+      return true;
+    } catch (e) {
+      _errorMessage = 'Gagal memperbarui dompet: $e';
+      notifyListeners();
+      return false;
+    }
+  }
+
+  Future<bool> deleteWallet(String id) async {
+    if (_wallets.length <= 1) {
+      _errorMessage = 'Tidak dapat menghapus satu-satunya dompet';
+      notifyListeners();
+      return false;
+    }
+
+    try {
+      await _dbHelper.deleteWallet(id);
+      if (_selectedWalletId == id) {
+        final remaining = _wallets.where((w) => w.id != id);
+        _selectedWalletId = remaining.isNotEmpty ? remaining.first.id : null;
+      }
+      await loadData();
+      return true;
+    } catch (e) {
+      _errorMessage = 'Gagal menghapus dompet: $e';
+      notifyListeners();
+      return false;
+    }
+  }
+
+  // ================= TRANSACTION MUTATIONS =================
 
   Future<bool> addTransaction({
     required String categoryId,
     required double amount,
     required DateTime date,
     String note = '',
+    String? walletId,
   }) async {
     try {
       final now = DateTime.now();
+      final effectiveWalletId = walletId ??
+          (_selectedWalletId != 'all' ? _selectedWalletId : null) ??
+          (_wallets.isNotEmpty ? _wallets.first.id : 'wallet_cash');
+
       final item = TransactionItem(
         id: 'tx_${now.millisecondsSinceEpoch}',
         categoryId: categoryId,
+        walletId: effectiveWalletId,
         amount: amount,
         date: date,
         note: note.trim(),
@@ -213,6 +324,7 @@ class FinanceProvider with ChangeNotifier {
   Future<bool> resetData() async {
     try {
       await _dbHelper.resetToDefault();
+      _selectedWalletId = null;
       await loadData();
       return true;
     } catch (e) {

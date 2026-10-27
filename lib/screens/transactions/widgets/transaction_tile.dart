@@ -112,6 +112,31 @@ class TransactionTile extends StatelessWidget {
                   color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
                 ),
               ),
+              if (transaction.wallet != null) ...[
+                const SizedBox(width: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                  decoration: BoxDecoration(
+                    color: transaction.wallet!.color.withOpacity(0.14),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(transaction.wallet!.iconData, size: 10, color: transaction.wallet!.color),
+                      const SizedBox(width: 3),
+                      Text(
+                        transaction.wallet!.name,
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          color: transaction.wallet!.color,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
               const SizedBox(width: 8),
               Container(
                 width: 3,

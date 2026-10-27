@@ -5,6 +5,7 @@ import '../../core/utils/currency_formatter.dart';
 import '../../data/services/backup_service.dart';
 import '../../providers/finance_provider.dart';
 import '../../providers/theme_provider.dart';
+import '../dashboard/widgets/add_wallet_dialog.dart';
 import 'widgets/edit_budget_dialog.dart';
 
 class SettingsScreen extends StatelessWidget {
@@ -17,6 +18,7 @@ class SettingsScreen extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final categories = finance.categories;
     final totalBudget = finance.totalBudget;
+    final wallets = finance.wallets;
 
     return Scaffold(
       appBar: AppBar(
@@ -79,6 +81,177 @@ class SettingsScreen extends StatelessWidget {
                   ),
                 ),
               ],
+            ),
+          ),
+          const SizedBox(height: 24),
+
+          // Section: Kelola Dompet & Rekening
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Kelola Dompet & Rekening',
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+              ),
+              TextButton.icon(
+                onPressed: () => AddWalletDialog.show(context),
+                icon: const Icon(Icons.add_rounded, size: 18),
+                label: const Text('Tambah'),
+                style: TextButton.styleFrom(
+                  visualDensity: VisualDensity.compact,
+                  foregroundColor: AppColors.primary,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Daftar dompet terpisah untuk mengatur arus kas & saldo rekening:',
+            style: TextStyle(
+              fontSize: 12,
+              color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          Container(
+            decoration: BoxDecoration(
+              color: isDark ? AppColors.darkCard : AppColors.lightCard,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+              ),
+            ),
+            child: Column(
+              children: wallets.asMap().entries.map((entry) {
+                final index = entry.key;
+                final wallet = entry.value;
+                final isLast = index == wallets.length - 1;
+
+                return Column(
+                  children: [
+                    ListTile(
+                      leading: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: wallet.color.withOpacity(0.15),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Icon(wallet.iconData, color: wallet.color, size: 20),
+                      ),
+                      title: Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              wallet.name,
+                              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          if (wallet.isDefault) ...[
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                              decoration: BoxDecoration(
+                                color: wallet.color.withOpacity(0.15),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Text(
+                                'Utama',
+                                style: TextStyle(
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.bold,
+                                  color: wallet.color,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                      subtitle: Text(
+                        'Pagu: ${CurrencyFormatter.format(wallet.initialBalance)}',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
+                        ),
+                      ),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              Text(
+                                CurrencyFormatter.format(wallet.currentBalance),
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.bold,
+                                  color: wallet.currentBalance < 0
+                                      ? AppColors.danger
+                                      : (isDark ? Colors.white : Colors.black87),
+                                ),
+                              ),
+                              Text(
+                                'Sisa Saldo',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(width: 4),
+                          IconButton(
+                            icon: const Icon(Icons.edit_outlined, size: 18),
+                            visualDensity: VisualDensity.compact,
+                            tooltip: 'Ubah Dompet',
+                            onPressed: () => AddWalletDialog.show(context, wallet: wallet),
+                          ),
+                          if (wallets.length > 1)
+                            IconButton(
+                              icon: const Icon(Icons.delete_outline_rounded, size: 18, color: AppColors.danger),
+                              visualDensity: VisualDensity.compact,
+                              tooltip: 'Hapus Dompet',
+                              onPressed: () async {
+                                final confirm = await showDialog<bool>(
+                                  context: context,
+                                  builder: (ctx) => AlertDialog(
+                                    title: const Text('Hapus Dompet?'),
+                                    content: Text(
+                                      'Hapus "${wallet.name}"? Transaksi di dompet ini akan dipindahkan ke dompet utama.',
+                                    ),
+                                    actions: [
+                                      TextButton(
+                                        onPressed: () => Navigator.pop(ctx, false),
+                                        child: const Text('Batal'),
+                                      ),
+                                      FilledButton(
+                                        onPressed: () => Navigator.pop(ctx, true),
+                                        style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
+                                        child: const Text('Hapus'),
+                                      ),
+                                    ],
+                                  ),
+                                );
+
+                                if (confirm == true) {
+                                  await finance.deleteWallet(wallet.id);
+                                }
+                              },
+                            ),
+                        ],
+                      ),
+                    ),
+                    if (!isLast)
+                      Divider(
+                        height: 1,
+                        color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+                        indent: 56,
+                      ),
+                  ],
+                );
+              }).toList(),
             ),
           ),
           const SizedBox(height: 24),
@@ -228,14 +401,16 @@ class SettingsScreen extends StatelessWidget {
                   onTap: () async {
                     try {
                       final restored = await BackupService().importBackup();
-                      if (restored && context.mounted) {
+                      if (restored) {
                         await finance.reloadAfterRestore();
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Data cadangan berhasil dipulihkan!'),
-                            backgroundColor: AppColors.success,
-                          ),
-                        );
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Data cadangan berhasil dipulihkan!'),
+                              backgroundColor: AppColors.success,
+                            ),
+                          );
+                        }
                       }
                     } catch (e) {
                       if (context.mounted) {
@@ -332,14 +507,16 @@ class SettingsScreen extends StatelessWidget {
                       ),
                     );
 
-                    if (confirmed == true && context.mounted) {
+                    if (confirmed == true) {
                       await finance.resetData();
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Data berhasil direset ke anggaran bawaan'),
-                          backgroundColor: AppColors.success,
-                        ),
-                      );
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Data berhasil direset ke anggaran bawaan'),
+                            backgroundColor: AppColors.success,
+                          ),
+                        );
+                      }
                     }
                   },
                 ),

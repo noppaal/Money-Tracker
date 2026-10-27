@@ -7,6 +7,7 @@ import '../../data/models/transaction_item.dart';
 import '../../providers/finance_provider.dart';
 import 'widgets/transaction_tile.dart';
 import 'widgets/edit_transaction_dialog.dart';
+import '../dashboard/widgets/wallet_selector_sheet.dart';
 
 class TransactionsScreen extends StatefulWidget {
   const TransactionsScreen({super.key});
@@ -46,9 +47,55 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     final grouped = _groupTransactions(filtered);
     final sortedKeys = grouped.keys.toList()..sort((a, b) => b.compareTo(a));
 
+    final selectedWallet = finance.selectedWallet;
+    final isAllWallets = finance.selectedWalletId == 'all';
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Riwayat Transaksi'),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Riwayat Transaksi',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+            ),
+            InkWell(
+              onTap: () => WalletSelectorSheet.show(context),
+              borderRadius: BorderRadius.circular(8),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 2.0),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      isAllWallets
+                          ? Icons.account_balance_wallet_rounded
+                          : (selectedWallet?.iconData ?? Icons.wallet_rounded),
+                      size: 13,
+                      color: isAllWallets
+                          ? AppColors.primary
+                          : (selectedWallet?.color ?? AppColors.primary),
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      isAllWallets
+                          ? 'Semua Dompet'
+                          : (selectedWallet?.name ?? 'Dompet Utama'),
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: isDark
+                            ? AppColors.darkTextSecondary
+                            : AppColors.lightTextSecondary,
+                      ),
+                    ),
+                    const Icon(Icons.arrow_drop_down_rounded, size: 16),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
         actions: [
           // Month Selector
           TextButton.icon(

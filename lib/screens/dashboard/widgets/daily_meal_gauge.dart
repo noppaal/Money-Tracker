@@ -21,7 +21,6 @@ class DailyMealGauge extends StatelessWidget {
     final allocatedFoodBudget = food?.allocatedAmount ?? AppConstants.defaultDailyMealTarget * 30;
 
     // Calculate status and health ratio
-    // Target baseline is ~Rp60.000
     const baseline = AppConstants.defaultDailyMealTarget;
     final ratio = (dailyAllowance / baseline).clamp(0.0, 1.5);
 
@@ -32,23 +31,23 @@ class DailyMealGauge extends StatelessWidget {
 
     if (remainingFoodBudget <= 0) {
       statusColor = AppColors.danger;
-      statusTitle = 'Overbudget Makan!';
+      statusTitle = 'Habis';
       statusMessage = 'Anggaran makan bulan ini sudah habis. Perlu hemat ekstra!';
       statusIcon = Icons.warning_amber_rounded;
     } else if (dailyAllowance >= baseline) {
-      statusColor = AppColors.success;
-      statusTitle = 'Budget Aman & Fleksibel';
-      statusMessage = 'Kamu bisa menikmati makan enak hari ini! 🍛';
+      statusColor = const Color(0xFF10B981);
+      statusTitle = 'Aman & Fleksibel';
+      statusMessage = 'Jatah makan hari ini melimpah! Nikmati harimu 🍛';
       statusIcon = Icons.sentiment_very_satisfied_rounded;
     } else if (dailyAllowance >= 35000) {
-      statusColor = AppColors.warning;
-      statusTitle = 'Cukup & Terkendali';
+      statusColor = const Color(0xFFF59E0B);
+      statusTitle = 'Terkendali';
       statusMessage = 'Jaga porsi pengeluaran agar cukup sampai akhir bulan 🍜';
       statusIcon = Icons.sentiment_satisfied_rounded;
     } else {
-      statusColor = const Color(0xFFF97316); // Orange
-      statusTitle = 'Perlu Berhemat';
-      statusMessage = 'Jatah makan harian menipis. Prioritaskan masak sendiri 🥣';
+      statusColor = const Color(0xFFF97316);
+      statusTitle = 'Hemat Ekstra';
+      statusMessage = 'Jatah makan harian menipis. Prioritaskan menu hemat 🥣';
       statusIcon = Icons.sentiment_neutral_rounded;
     }
 
@@ -58,8 +57,8 @@ class DailyMealGauge extends StatelessWidget {
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(24),
         side: BorderSide(
-          color: statusColor.withOpacity(0.3),
-          width: 1.5,
+          color: statusColor.withOpacity(0.25),
+          width: 1.2,
         ),
       ),
       child: Padding(
@@ -76,13 +75,13 @@ class DailyMealGauge extends StatelessWidget {
                     Container(
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFF59E0B).withOpacity(0.15),
+                        color: statusColor.withOpacity(0.14),
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: const Icon(
+                      child: Icon(
                         Icons.restaurant_rounded,
-                        color: Color(0xFFF59E0B),
-                        size: 20,
+                        color: statusColor,
+                        size: 18,
                       ),
                     ),
                     const SizedBox(width: 10),
@@ -93,7 +92,8 @@ class DailyMealGauge extends StatelessWidget {
                           'Radar Makan Harian',
                           style: TextStyle(
                             fontSize: 15,
-                            fontWeight: FontWeight.bold,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: -0.2,
                           ),
                         ),
                         Text(
@@ -115,7 +115,7 @@ class DailyMealGauge extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: statusColor.withOpacity(0.12),
                     borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: statusColor.withOpacity(0.4)),
+                    border: Border.all(color: statusColor.withOpacity(0.35)),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
@@ -127,7 +127,7 @@ class DailyMealGauge extends StatelessWidget {
                         style: TextStyle(
                           color: statusColor,
                           fontSize: 11,
-                          fontWeight: FontWeight.bold,
+                          fontWeight: FontWeight.w700,
                         ),
                       ),
                     ],
@@ -135,53 +135,61 @@ class DailyMealGauge extends StatelessWidget {
                 ),
               ],
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 18),
 
             // Center Dynamic Gauge Visual & Numbers
             Row(
               children: [
-                // Custom Circular Arc Gauge
+                // Animated Circular Arc Gauge
                 SizedBox(
                   width: 90,
                   height: 90,
-                  child: Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      CustomPaint(
-                        size: const Size(90, 90),
-                        painter: _MealGaugePainter(
-                          progress: (ratio / 1.5).clamp(0.0, 1.0),
-                          activeColor: statusColor,
-                          backgroundColor: isDark
-                              ? AppColors.darkBorder
-                              : AppColors.lightBorder,
-                        ),
-                      ),
-                      Column(
-                        mainAxisSize: MainAxisSize.min,
+                  child: TweenAnimationBuilder<double>(
+                    key: ValueKey('gauge_${ratio}_$dailyAllowance'),
+                    tween: Tween<double>(begin: 0.0, end: (ratio / 1.5).clamp(0.0, 1.0)),
+                    duration: const Duration(milliseconds: 900),
+                    curve: Curves.easeOutCubic,
+                    builder: (context, animatedProgress, child) {
+                      return Stack(
+                        alignment: Alignment.center,
                         children: [
-                          Icon(
-                            Icons.lunch_dining_rounded,
-                            color: statusColor,
-                            size: 24,
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            '${(ratio * 100).toInt()}%',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                              color: statusColor,
+                          CustomPaint(
+                            size: const Size(90, 90),
+                            painter: _MealGaugePainter(
+                              progress: animatedProgress,
+                              activeColor: statusColor,
+                              backgroundColor: isDark
+                                  ? AppColors.darkBorder
+                                  : AppColors.lightBorder,
                             ),
                           ),
+                          Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.lunch_dining_rounded,
+                                color: statusColor,
+                                size: 22,
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                '${(animatedProgress * 150).toInt()}%',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w800,
+                                  color: statusColor,
+                                ),
+                              ),
+                            ],
+                          ),
                         ],
-                      ),
-                    ],
+                      );
+                    },
                   ),
                 ),
                 const SizedBox(width: 18),
 
-                // Numerical Breakdown
+                // Numerical Breakdown with smooth tween
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -196,19 +204,27 @@ class DailyMealGauge extends StatelessWidget {
                           fontWeight: FontWeight.w500,
                         ),
                       ),
-                      const SizedBox(height: 2),
-                      FittedBox(
-                        alignment: Alignment.centerLeft,
-                        fit: BoxFit.scaleDown,
-                        child: Text(
-                          '${CurrencyFormatter.format(dailyAllowance)} / hari',
-                          style: TextStyle(
-                            fontSize: 22,
-                            fontWeight: FontWeight.w800,
-                            color: statusColor,
-                            letterSpacing: -0.5,
-                          ),
-                        ),
+                      const SizedBox(height: 3),
+                      TweenAnimationBuilder<double>(
+                        key: ValueKey('daily_meal_$dailyAllowance'),
+                        tween: Tween<double>(begin: 0.0, end: dailyAllowance),
+                        duration: const Duration(milliseconds: 700),
+                        curve: Curves.easeOutCubic,
+                        builder: (context, value, child) {
+                          return FittedBox(
+                            alignment: Alignment.centerLeft,
+                            fit: BoxFit.scaleDown,
+                            child: Text(
+                              '${CurrencyFormatter.format(value)} / hari',
+                              style: TextStyle(
+                                fontSize: 21,
+                                fontWeight: FontWeight.w800,
+                                color: statusColor,
+                                letterSpacing: -0.5,
+                              ),
+                            ),
+                          );
+                        },
                       ),
                       const SizedBox(height: 6),
                       Text(
@@ -233,9 +249,9 @@ class DailyMealGauge extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               decoration: BoxDecoration(
                 color: statusColor.withOpacity(0.08),
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: BorderRadius.circular(16),
                 border: Border.all(
-                  color: statusColor.withOpacity(0.2),
+                  color: statusColor.withOpacity(0.18),
                 ),
               ),
               child: Row(
@@ -248,7 +264,7 @@ class DailyMealGauge extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w500,
-                        color: isDark ? Colors.white : Colors.black87,
+                        color: isDark ? Colors.white70 : Colors.black87,
                       ),
                     ),
                   ),
@@ -267,7 +283,7 @@ class _MealGaugePainter extends CustomPainter {
   final Color activeColor;
   final Color backgroundColor;
 
-  _MealGaugePainter({
+  const _MealGaugePainter({
     required this.progress,
     required this.activeColor,
     required this.backgroundColor,
@@ -275,13 +291,12 @@ class _MealGaugePainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final strokeWidth = 8.0;
+    const strokeWidth = 8.0;
     final center = Offset(size.width / 2, size.height / 2);
     final radius = (size.width - strokeWidth) / 2;
 
-    // Background Arc (from 135 deg to 405 deg = 270 deg total)
-    const startAngle = 135 * (pi / 180);
-    const sweepAngle = 270 * (pi / 180);
+    const startAngle = 0.75 * pi;
+    const sweepAngle = 1.5 * pi;
 
     final bgPaint = Paint()
       ..color = backgroundColor
@@ -297,21 +312,23 @@ class _MealGaugePainter extends CustomPainter {
       bgPaint,
     );
 
-    // Active Progress Arc
     final activePaint = Paint()
       ..color = activeColor
       ..style = PaintingStyle.stroke
       ..strokeWidth = strokeWidth
       ..strokeCap = StrokeCap.round;
 
-    final currentSweep = sweepAngle * progress;
-    canvas.drawArc(
-      Rect.fromCircle(center: center, radius: radius),
-      startAngle,
-      currentSweep,
-      false,
-      activePaint,
-    );
+    final activeSweep = sweepAngle * progress;
+
+    if (activeSweep > 0) {
+      canvas.drawArc(
+        Rect.fromCircle(center: center, radius: radius),
+        startAngle,
+        activeSweep,
+        false,
+        activePaint,
+      );
+    }
   }
 
   @override
