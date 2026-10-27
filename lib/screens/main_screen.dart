@@ -38,64 +38,49 @@ class _MainScreenState extends State<MainScreen> {
       const SettingsScreen(),
     ];
 
-    return Scaffold(
-      body: Center(
+    return Container(
+      color: isDark ? const Color(0xFF090D16) : const Color(0xFFE2E8F0),
+      child: Center(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 580),
-          child: IndexedStack(
-            index: _currentIndex,
-            children: screens,
-          ),
-        ),
-      ),
-      floatingActionButton: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 580),
-          child: Align(
-            alignment: Alignment.bottomRight,
-            child: Padding(
-              padding: const EdgeInsets.only(right: 16.0, bottom: 8.0),
-              child: FloatingActionButton.extended(
-                onPressed: () {
-                  HapticFeedback.mediumImpact();
-                  QuickAddSheet.show(context);
-                },
-                icon: const Icon(Icons.add_rounded, size: 22),
-                label: const Text(
-                  'Catat',
-                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
-                ),
-                backgroundColor: AppColors.primary,
-                foregroundColor: Colors.white,
-                elevation: 6,
-              ),
+          constraints: const BoxConstraints(maxWidth: 520),
+          child: Scaffold(
+            body: IndexedStack(
+              index: _currentIndex,
+              children: screens,
             ),
-          ),
-        ),
-      ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
-      bottomNavigationBar: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 580),
-          child: Container(
-            decoration: BoxDecoration(
-              color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
-              border: Border(
-                top: BorderSide(
-                  color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
-                  width: 1.0,
+            floatingActionButton: _currentIndex != 2
+                ? FloatingActionButton.extended(
+                    onPressed: () {
+                      HapticFeedback.mediumImpact();
+                      QuickAddSheet.show(context);
+                    },
+                    icon: const Icon(Icons.add_rounded, size: 22),
+                    label: const Text(
+                      'Catat',
+                      style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+                    ),
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    elevation: 4,
+                  )
+                : null,
+            bottomNavigationBar: Container(
+              decoration: BoxDecoration(
+                color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
+                border: Border(
+                  top: BorderSide(
+                    color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+                    width: 1.0,
+                  ),
                 ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(isDark ? 0.35 : 0.06),
+                    blurRadius: 16,
+                    offset: const Offset(0, -4),
+                  ),
+                ],
               ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(isDark ? 0.35 : 0.06),
-                  blurRadius: 16,
-                  offset: const Offset(0, -4),
-                ),
-              ],
-            ),
-            child: SafeArea(
-              top: false,
               child: NavigationBar(
                 selectedIndex: _currentIndex,
                 onDestinationSelected: _onTabChanged,

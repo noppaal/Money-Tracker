@@ -25,7 +25,12 @@ class QuickAddSheet extends StatefulWidget {
     return showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
       backgroundColor: Colors.transparent,
+      constraints: BoxConstraints(
+        maxWidth: 520,
+        maxHeight: MediaQuery.of(context).size.height * 0.92,
+      ),
       builder: (ctx) => QuickAddSheet(
         initialCategoryId: categoryId,
         initialType: type,
@@ -629,22 +634,44 @@ class _QuickAddSheetState extends State<QuickAddSheet> {
             const SizedBox(height: 16),
 
             // Save Button
-            ElevatedButton(
-              onPressed: _saveTransaction,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: activeThemeColor,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(18),
+            Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: isIncome
+                      ? [const Color(0xFF10B981), const Color(0xFF059669)]
+                      : [const Color(0xFF0D9488), const Color(0xFF0F766E)],
                 ),
-                elevation: 4,
+                borderRadius: BorderRadius.circular(18),
+                boxShadow: [
+                  BoxShadow(
+                    color: activeThemeColor.withOpacity(0.35),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
               ),
-              child: Text(
-                isIncome ? 'Simpan Pemasukan' : 'Simpan Pengeluaran',
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
+              child: ElevatedButton.icon(
+                onPressed: _saveTransaction,
+                icon: Icon(
+                  isIncome ? Icons.south_west_rounded : Icons.north_east_rounded,
+                  size: 20,
+                ),
+                label: Text(
+                  isIncome ? 'Simpan Pemasukan' : 'Simpan Pengeluaran',
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: -0.2,
+                  ),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.transparent,
+                  shadowColor: Colors.transparent,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(18),
+                  ),
                 ),
               ),
             ),
@@ -720,7 +747,7 @@ class _QuickAddSheetState extends State<QuickAddSheet> {
             onTap: () => _onNumpadPress(label),
             borderRadius: BorderRadius.circular(14),
             child: Container(
-              height: 48,
+              height: 40,
               alignment: Alignment.center,
               child: icon != null
                   ? Icon(icon, size: 20, color: color ?? (isDark ? Colors.white70 : Colors.black87))
