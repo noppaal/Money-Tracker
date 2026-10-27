@@ -481,17 +481,17 @@ class SettingsScreen extends StatelessWidget {
                     child: const Icon(Icons.restart_alt_rounded, color: AppColors.danger, size: 20),
                   ),
                   title: const Text(
-                    'Reset ke Anggaran Bawaan',
+                    'Reset Data (Mulai dari Nol)',
                     style: TextStyle(color: AppColors.danger, fontWeight: FontWeight.w600),
                   ),
-                  subtitle: const Text('Kembalikan 8 pos anggaran bawaan (Rp4.500.000)'),
+                  subtitle: const Text('Kembalikan saldo dan pagu ke Rp0 serta hapus transaksi'),
                   onTap: () async {
                     final confirmed = await showDialog<bool>(
                       context: context,
                       builder: (ctx) => AlertDialog(
-                        title: const Text('Reset Anggaran?'),
+                        title: const Text('Mulai dari Nol?'),
                         content: const Text(
-                          'Tindakan ini akan mengembalikan susunan kategori dan pagu bawaan (Rp4.500.000) dan menghapus transaksi lokal.',
+                          'Tindakan ini akan mengosongkan seluruh saldo dompet dan pagu anggaran menjadi Rp0, serta menghapus seluruh catatan transaksi lokal.',
                         ),
                         actions: [
                           TextButton(
@@ -512,7 +512,7 @@ class SettingsScreen extends StatelessWidget {
                       if (context.mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
-                            content: Text('Data berhasil direset ke anggaran bawaan'),
+                            content: Text('Semua data berhasil direset ke Rp0'),
                             backgroundColor: AppColors.success,
                           ),
                         );

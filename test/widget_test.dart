@@ -5,13 +5,16 @@ import 'package:moneytracker/data/models/transaction_item.dart';
 
 void main() {
   group('Wallet Model & Logic Tests', () {
-    test('Default wallets have correct initial properties', () {
+    test('Default wallets have correct initial properties and zero balance', () {
       final defaults = Wallet.defaultWallets;
       expect(defaults.length, 3);
       expect(defaults[0].name, 'Dompet Tunai');
       expect(defaults[0].isDefault, true);
+      expect(defaults[0].initialBalance, 0.0);
       expect(defaults[1].name, 'Rekening Bank (BCA)');
+      expect(defaults[1].initialBalance, 0.0);
       expect(defaults[2].name, 'E-Wallet (GoPay)');
+      expect(defaults[2].initialBalance, 0.0);
     });
 
     test('Wallet toMap and fromMap serialization & balance computation with income', () {

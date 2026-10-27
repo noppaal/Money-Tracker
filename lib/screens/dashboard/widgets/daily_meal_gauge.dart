@@ -18,18 +18,25 @@ class DailyMealGauge extends StatelessWidget {
     final dailyAllowance = finance.dailyMealAllowance;
     final daysRemaining = finance.remainingDaysInMonth;
     final remainingFoodBudget = food?.remainingAmount ?? 0.0;
-    final allocatedFoodBudget = food?.allocatedAmount ?? AppConstants.defaultDailyMealTarget * 30;
+    final allocatedFoodBudget = food?.allocatedAmount ?? 0.0;
 
     // Calculate status and health ratio
     const baseline = AppConstants.defaultDailyMealTarget;
-    final ratio = (dailyAllowance / baseline).clamp(0.0, 1.5);
+    final ratio = allocatedFoodBudget <= 0
+        ? 0.0
+        : (dailyAllowance / baseline).clamp(0.0, 1.5);
 
     Color statusColor;
     String statusTitle;
     String statusMessage;
     IconData statusIcon;
 
-    if (remainingFoodBudget <= 0) {
+    if (allocatedFoodBudget <= 0) {
+      statusColor = AppColors.primary;
+      statusTitle = 'Belum Diatur';
+      statusMessage = 'Pagu makan belum diatur. Atur di menu Pengaturan 💡';
+      statusIcon = Icons.tune_rounded;
+    } else if (remainingFoodBudget <= 0) {
       statusColor = AppColors.danger;
       statusTitle = 'Habis';
       statusMessage = 'Anggaran makan bulan ini sudah habis. Perlu hemat ekstra!';

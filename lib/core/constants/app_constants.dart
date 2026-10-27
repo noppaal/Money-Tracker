@@ -3,8 +3,8 @@ class AppConstants {
   static const String dbName = 'money_tracker.db';
   static const int dbVersion = 1;
 
-  // Total Baseline Budget: Rp4.500.000
-  static const double defaultTotalBudget = 4500000.0;
+  // Total Baseline Budget: Rp0
+  static const double defaultTotalBudget = 0.0;
 
   // Default Daily Meal Target Baseline (~Rp60.000/hari)
   static const double defaultDailyMealTarget = 60000.0;

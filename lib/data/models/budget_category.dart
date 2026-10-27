@@ -96,13 +96,13 @@ class BudgetCategory {
     );
   }
 
-  // Pre-configured 8 default expense envelopes: Total = Rp4.500.000
+  // Pre-configured default expense envelopes: Initial = Rp0
   static List<BudgetCategory> get defaultCategories => [
         BudgetCategory(
           id: 'savings',
           name: 'Tabungan & Investasi',
           type: 'expense',
-          allocatedAmount: 1000000.0,
+          allocatedAmount: 0.0,
           iconCodePoint: Icons.savings_rounded.codePoint,
           colorValue: 0xFF10B981, // Emerald
           sortOrder: 1,
@@ -112,7 +112,7 @@ class BudgetCategory {
           id: 'food',
           name: 'Makan & Minum',
           type: 'expense',
-          allocatedAmount: 1800000.0, // ~Rp60.000/hari
+          allocatedAmount: 0.0,
           iconCodePoint: Icons.restaurant_rounded.codePoint,
           colorValue: 0xFFF59E0B, // Amber / Warm Orange
           sortOrder: 2,
@@ -122,7 +122,7 @@ class BudgetCategory {
           id: 'laundry',
           name: 'Laundry',
           type: 'expense',
-          allocatedAmount: 250000.0,
+          allocatedAmount: 0.0,
           iconCodePoint: Icons.local_laundry_service_rounded.codePoint,
           colorValue: 0xFF06B6D4, // Cyan
           sortOrder: 3,
@@ -132,7 +132,7 @@ class BudgetCategory {
           id: 'electricity',
           name: 'Listrik',
           type: 'expense',
-          allocatedAmount: 200000.0,
+          allocatedAmount: 0.0,
           iconCodePoint: Icons.bolt_rounded.codePoint,
           colorValue: 0xFFEAB308, // Yellow
           sortOrder: 4,
@@ -142,7 +142,7 @@ class BudgetCategory {
           id: 'wifi',
           name: 'Wi-Fi',
           type: 'expense',
-          allocatedAmount: 200000.0,
+          allocatedAmount: 0.0,
           iconCodePoint: Icons.wifi_rounded.codePoint,
           colorValue: 0xFF3B82F6, // Blue
           sortOrder: 5,
@@ -152,7 +152,7 @@ class BudgetCategory {
           id: 'transport',
           name: 'Transport & Pulsa',
           type: 'expense',
-          allocatedAmount: 400000.0,
+          allocatedAmount: 0.0,
           iconCodePoint: Icons.directions_car_rounded.codePoint,
           colorValue: 0xFF8B5CF6, // Purple
           sortOrder: 6,
@@ -162,7 +162,7 @@ class BudgetCategory {
           id: 'entertainment',
           name: 'Senang-senang / Hiburan',
           type: 'expense',
-          allocatedAmount: 400000.0,
+          allocatedAmount: 0.0,
           iconCodePoint: Icons.sports_esports_rounded.codePoint,
           colorValue: 0xFFEC4899, // Pink
           sortOrder: 7,
@@ -172,7 +172,7 @@ class BudgetCategory {
           id: 'medical',
           name: 'Dana Cadangan & Medis',
           type: 'expense',
-          allocatedAmount: 250000.0,
+          allocatedAmount: 0.0,
           iconCodePoint: Icons.health_and_safety_rounded.codePoint,
           colorValue: 0xFFEF4444, // Red
           sortOrder: 8,

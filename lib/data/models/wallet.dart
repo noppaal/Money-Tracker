@@ -100,7 +100,7 @@ class Wallet {
         Wallet(
           id: 'wallet_cash',
           name: 'Dompet Tunai',
-          initialBalance: 2500000.0,
+          initialBalance: 0.0,
           iconCodePoint: Icons.wallet_rounded.codePoint,
           colorValue: 0xFF10B981, // Emerald
           createdAt: DateTime.now(),
@@ -109,7 +109,7 @@ class Wallet {
         Wallet(
           id: 'wallet_bank',
           name: 'Rekening Bank (BCA)',
-          initialBalance: 2000000.0,
+          initialBalance: 0.0,
           iconCodePoint: Icons.account_balance_rounded.codePoint,
           colorValue: 0xFF6366F1, // Indigo
           createdAt: DateTime.now(),
@@ -118,7 +118,7 @@ class Wallet {
         Wallet(
           id: 'wallet_ewallet',
           name: 'E-Wallet (GoPay)',
-          initialBalance: 500000.0,
+          initialBalance: 0.0,
           iconCodePoint: Icons.phone_android_rounded.codePoint,
           colorValue: 0xFFF59E0B, // Amber
           createdAt: DateTime.now(),

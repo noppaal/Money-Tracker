@@ -185,6 +185,17 @@ class DatabaseHelper {
         await batch.commit(noResult: true);
       }
     } catch (_) {}
+
+    // 7. Ensure starting balance and category budgets are 0 if no transactions have been entered yet
+    try {
+      final txCount = Sqflite.firstIntValue(
+        await db.rawQuery('SELECT COUNT(*) FROM transactions'),
+      ) ?? 0;
+      if (txCount == 0) {
+        await db.execute('UPDATE wallets SET initial_balance = 0.0');
+        await db.execute('UPDATE categories SET allocated_amount = 0.0');
+      }
+    } catch (_) {}
   }
 
   // ================= WALLET OPERATIONS =================
